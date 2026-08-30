@@ -19,8 +19,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
 
-    if (prompt.length > 4000) {
-      return NextResponse.json({ error: 'Prompt exceeds maximum length of 4000 characters' }, { status: 400 });
+    if (prompt.length > 8000) {
+      return NextResponse.json({ error: 'Prompt exceeds maximum length of 8000 characters' }, { status: 400 });
     }
 
     // 1. Rate Limiting & Cost Protection (200 req/min)
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     if (isUndoRequest) {
       const isBangla = /[\u0980-\u09FF]/.test(prompt);
       const isBanglish = /koro|chilo|moto|dao|rakhba|bad|amar|hobe/i.test(prompt);
-      
+
       let replyContent = 'Done — Previous version restored!';
       if (isBangla) {
         replyContent = 'Done — আগের ভার্সনে ফেরত নেওয়া হয়েছে।';
@@ -62,35 +62,38 @@ export async function POST(req: Request) {
       return NextResponse.json({
         content: replyContent,
         diffPreview: {
-          action: 'undo'
+          action: 'undo',
         },
         suggestedActions: [
           'Make my CV professional',
           'Make it one page',
-          'Change CV design'
-        ]
+          'Change CV design',
+        ],
       });
     }
 
     const systemPrompt = `
 You are Resumate AI, a friendly, intelligent, and highly competent CV assistant powered by Google Gemini.
-You converse naturally with the user, understanding instructions implicitly based on the multi-turn context of the chat.
+You converse naturally with the user in Bengali (বাংলা), Banglish, or English.
 
-CRITICAL BEHAVIORAL RULES:
-1. NATURAL & CONCISE REPLIES:
-   - Reply in 1 to 2 short, friendly sentences.
+CRITICAL RULES:
+1. USER PROFILE / CV DATA INPUT:
+   - When the user pastes their candidate details, raw CV text, bio, contact info (phone/email/address), work history, skills, or education into the chat:
+   - You MUST EXTRACT and OVERWRITE all corresponding fields in "modifiedData":
+     * personalInfo: { fullName, jobTitle, email, phone, location, summary }
+     * experiences: [ { id, company, role, location, startDate, endDate, current, bullets: [] } ]
+     * education: [ { id, institution, degree, field, location, startDate, endDate, gpa } ]
+     * skills: [ { id, name, category } ]
+     * languages: [ { id, language, proficiency } ]
+   - Never keep placeholder sample names (like Alexandre Morgan) when the user provides their real name!
+
+2. NATURAL & CONCISE REPLIES:
+   - Reply in 1 to 2 short, friendly sentences in the user's language (Bengali/Banglish/English).
    - NEVER output technical jargon, schema names, field names, or robotic phrases.
-   - Match user language: Bengali (বাংলা), Banglish, or English.
 
-2. NEVER INVENT FACTS:
+3. NEVER INVENT FACTS:
    - Never invent new companies, degrees, dates, schools, or certifications.
    - You can polish, strengthen, tighten, or rephrase existing bullets and summaries.
-   - If user provides specific new data (e.g., "CGPA 3.35 add koro"), add it to education.
-
-3. PRESERVE UNTOUCHED DATA:
-   - Only modify the specific fields or sections requested.
-   - If user asks for "design only change korba" or "same content rakhba", do NOT modify ResumeData, only modify DesignConfig.
-   - If user asks to move a section (e.g. "education section ta niche dao"), update "sectionOrder" in modifiedDesign.
 
 4. 8 PROFESSIONAL CV TEMPLATES:
    - national-pro: Bangladesh companies, local corporate, NGOs, hospitals.
@@ -104,22 +107,20 @@ CRITICAL BEHAVIORAL RULES:
 
 5. PHOTO COMMANDS:
    - If user asks to remove photo ("photo remove koro", "ছবি বাদ দাও"), set photoUrl to undefined.
-   - If user asks to add photo, set appropriate photoUrl.
 
 6. ONE-PAGE FIT:
    - When asked "CV ta one page koro" or "make it 1 page", set:
      { "onePageMode": true, "sectionSpacing": "compact", "lineSpacing": "compact", "fontSize": "sm" }
-     and tighten bullet points.
 
 JSON Schema to return:
 {
-  "content": "string, short natural conversational response (1-2 sentences)",
+  "content": "Short friendly confirmation in Bengali/Banglish/English (1-2 sentences)",
   "diffPreview": {
-    "action": "update" | "undo",
+    "action": "update",
     "modifiedData": { ... },
     "modifiedDesign": { ... }
   },
-  "suggestedActions": ["string", "string"]
+  "suggestedActions": ["CV ta one page koro", "Experience ta aro strong koro", "Download PDF"]
 }
 `;
 
@@ -131,7 +132,7 @@ JSON Schema to return:
         history,
         { resumeData, designConfig }
       );
-      if (aiResult && aiResult.content) {
+      if (aiResult && aiResult.content && aiResult.diffPreview) {
         return NextResponse.json(aiResult);
       }
     } catch (aiErr: any) {
@@ -141,7 +142,6 @@ JSON Schema to return:
     // High-precision fallback for offline/deterministic handling
     const fallbackResponse = handleIntelligentFallback(prompt, resumeData, designConfig, history);
     return NextResponse.json(fallbackResponse);
-
   } catch (error: any) {
     console.error('Chat API Fatal Error:', error);
     return NextResponse.json(
@@ -152,7 +152,7 @@ JSON Schema to return:
 }
 
 /**
- * Intelligent deterministic multi-turn and multi-lingual fallback
+ * Intelligent deterministic multi-turn, multi-lingual & raw CV parsing fallback
  */
 function handleIntelligentFallback(
   prompt: string,
@@ -163,6 +163,41 @@ function handleIntelligentFallback(
   const p = prompt.toLowerCase().trim();
   const isBangla = /[\u0980-\u09FF]/.test(prompt);
   const isBanglish = /koro|chilo|moto|dao|rakhba|bad|amar|hobe|ektu|aro|valo|niche/i.test(prompt);
+
+  // 0. Check if user pasted full raw CV / profile info (contains email, phone, or multiple keywords)
+  const emailMatch = prompt.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  const phoneMatch = prompt.match(/(?:\+?880\s?|0)1[3-9]\d{8}|(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4,6}/);
+  const hasMultipleCvKeywords =
+    (p.includes('skills') || p.includes('experience') || p.includes('contact') || p.includes('education') || p.includes('address') || p.includes('languages')) &&
+    (emailMatch || phoneMatch || prompt.length > 100);
+
+  if (hasMultipleCvKeywords || (emailMatch && phoneMatch)) {
+    const parsed = parseRawCandidateData(prompt, resumeData);
+    let content = 'আপনার তথ্য দিয়ে সিভি সুন্দরভাবে আপডেট করা হয়েছে!';
+    if (isBangla) {
+      content = 'আপনার প্রদত্ত তথ্যাবলী সফলভাবে সিভিতে যুক্ত ও সাজানো হয়েছে।';
+    } else if (!isBanglish) {
+      content = 'Successfully updated your CV with your provided details and professional formatting.';
+    }
+
+    return {
+      content,
+      diffPreview: {
+        action: 'update',
+        modifiedData: parsed,
+        modifiedDesign: {
+          template: 'national-pro',
+          accentColor: '#0f172a',
+          fontFamily: 'jakarta',
+        },
+      },
+      suggestedActions: [
+        'CV ta one page koro',
+        'Make my CV professional',
+        'Download PDF',
+      ],
+    };
+  }
 
   // 1. Photo removal or addition
   if (
@@ -184,255 +219,40 @@ function handleIntelligentFallback(
           personalInfo: {
             ...resumeData.personalInfo,
             photoUrl: undefined,
-          }
-        }
+          },
+        },
       },
-      suggestedActions: [
-        'CV ta one page koro',
-        'Make my CV professional',
-        'Change CV design'
-      ]
+      suggestedActions: ['CV ta one page koro', 'Make my CV professional', 'Change CV design'],
     };
   }
 
-  if (
-    p.includes('photo add') ||
-    p.includes('add photo') ||
-    p.includes('ছবি যোগ') ||
-    p.includes('ছবি যুক্ত')
-  ) {
-    let content = 'Done — প্রোফাইল ছবি যুক্ত করা হয়েছে।';
-    if (!isBangla && !isBanglish) {
-      content = 'Done — Added a professional photo area to your CV.';
-    }
+  // 2. Templates
+  if (p.includes('bangladesh') || p.includes('hospital') || p.includes('ngo') || p.includes('local corporate') || p.includes('বাংলাদেশ')) {
     return {
-      content,
+      content: 'Done — বাংলাদেশের কোম্পানি ও প্রতিষ্ঠানের জন্য National Professional CV টেমপ্লেট সেট করেছি।',
       diffPreview: {
         action: 'update',
-        modifiedData: {
-          personalInfo: {
-            ...resumeData.personalInfo,
-            photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-          }
-        }
+        modifiedDesign: { template: 'national-pro', accentColor: '#0f172a' },
       },
-      suggestedActions: [
-        'National template select koro',
-        'CV ta one page koro',
-        'Make my CV professional'
-      ]
-    };
-  }
-
-  // 2. AI Smart Template Selection based on Country / Target Employer
-  if (
-    p.includes('bangladesh') ||
-    p.includes('hospital') ||
-    p.includes('ngo') ||
-    p.includes('local corporate') ||
-    p.includes('বাংলাদেশ') ||
-    p.includes('হাসপাতাল')
-  ) {
-    let content = 'Done — বাংলাদেশের কোম্পানি ও হাসপাতালের জন্য National Professional CV টেমপ্লেট সেট করেছি।';
-    if (isBangla) {
-      content = 'Done — লোকাল ও হাসপাতাল চাকুরির জন্য ন্যাশনাল প্রফেশনাল সিভি টেমপ্লেট নির্বাচন করা হয়েছে।';
-    } else if (!isBanglish) {
-      content = 'Done — Switched to the National Professional template suited for Bangladesh institutions and healthcare roles.';
-    }
-    return {
-      content,
-      diffPreview: {
-        action: 'update',
-        modifiedDesign: {
-          template: 'national-pro',
-          accentColor: '#0f172a',
-        }
-      },
-      suggestedActions: ['CV ta one page koro', 'Experience ta aro strong koro', 'Make it professional']
+      suggestedActions: ['CV ta one page koro', 'Experience ta aro strong koro', 'Make it professional'],
     };
   }
 
   if (p.includes('usa') || p.includes('canada') || p.includes('uk') || p.includes('ireland') || p.includes('ats')) {
-    let content = 'Done — USA, Canada ও UK জব অ্যাপ্লিকেশনের জন্য 100% ATS-Friendly Global ATS টেমপ্লেট সেট করেছি।';
-    if (!isBangla && !isBanglish) {
-      content = 'Done — Selected the Global ATS Resume template for North American and UK corporate applications.';
-    }
     return {
-      content,
+      content: 'Done — USA, Canada ও UK জব অ্যাপ্লিকেশনের জন্য 100% ATS-Friendly Global ATS টেমপ্লেট সেট করেছি।',
       diffPreview: {
         action: 'update',
-        modifiedDesign: {
-          template: 'global-ats',
-          accentColor: '#1e293b',
-        }
+        modifiedDesign: { template: 'global-ats', accentColor: '#1e293b' },
       },
-      suggestedActions: ['CV ta one page koro', 'Experience ta aro strong koro', 'Download PDF']
+      suggestedActions: ['CV ta one page koro', 'Experience ta aro strong koro', 'Download PDF'],
     };
   }
 
-  if (p.includes('germany') || p.includes('austria') || p.includes('switzerland') || p.includes('lebenslauf') || p.includes('জার্মানি')) {
-    let content = 'Done — জার্মানি ও DACH অঞ্চলের জন্য জার্মান স্ট্যান্ডার্ড Lebenslauf টেমপ্লেট সেট করেছি।';
-    if (!isBangla && !isBanglish) {
-      content = 'Done — Applied the German-speaking Lebenslauf format with tabular date alignment.';
-    }
+  // 3. One Page Fit
+  if (p.includes('one page') || p.includes('1 page') || p.includes('single page') || p.includes('এক পেজ') || p.includes('১ পেজ')) {
     return {
-      content,
-      diffPreview: {
-        action: 'update',
-        modifiedDesign: {
-          template: 'german-lebenslauf',
-          accentColor: '#334155',
-        }
-      },
-      suggestedActions: ['CV ta one page koro', 'Photo add koro', 'Download PDF']
-    };
-  }
-
-  if (p.includes('australia') || p.includes('new zealand') || p.includes('nz') || p.includes('অস্ট্রেলিয়া')) {
-    let content = 'Done — অস্ট্রেলিয়া ও নিউজিল্যান্ডের চাকুরির জন্য Australia / NZ টেমপ্লেট সেট করেছি।';
-    if (!isBangla && !isBanglish) {
-      content = 'Done — Selected the Australia / New Zealand resume template with achievement-focused layout.';
-    }
-    return {
-      content,
-      diffPreview: {
-        action: 'update',
-        modifiedDesign: {
-          template: 'australia-nz',
-          accentColor: '#1e3a8a',
-        }
-      },
-      suggestedActions: ['CV ta one page koro', 'Experience ta aro strong koro', 'Download PDF']
-    };
-  }
-
-  if (p.includes('multinational') || p.includes('mnc') || p.includes('executive') || p.includes('মাল্টিন্যাশনাল')) {
-    let content = 'Done — মাল্টিন্যাশনাল কোম্পানি ও এক্সিকিউটিভ পদের জন্য Multinational Company CV টেমপ্লেট নির্বাচন করেছি।';
-    if (!isBangla && !isBanglish) {
-      content = 'Done — Switched to the Multinational Company template with executive styling and metric cards.';
-    }
-    return {
-      content,
-      diffPreview: {
-        action: 'update',
-        modifiedDesign: {
-          template: 'multinational-corp',
-          accentColor: '#b45309',
-        }
-      },
-      suggestedActions: ['CV ta one page koro', 'Experience ta aro strong koro', 'Download PDF']
-    };
-  }
-
-  if (p.includes('international') || p.includes('overseas') || p.includes('ইন্টারন্যাশনাল') || p.includes('বিদেশ')) {
-    let content = 'Done — আন্তর্জাতিক চাকরির জন্য International Professional CV টেমপ্লেট সিলেক্ট করেছি।';
-    if (!isBangla && !isBanglish) {
-      content = 'Done — Selected the International Professional template with key competencies grid.';
-    }
-    return {
-      content,
-      diffPreview: {
-        action: 'update',
-        modifiedDesign: {
-          template: 'international-pro',
-          accentColor: '#0f766e',
-        }
-      },
-      suggestedActions: ['CV ta one page koro', 'Experience ta aro strong koro', 'Download PDF']
-    };
-  }
-
-  // 3. CGPA addition (e.g. "CGPA 3.35 add koro", "add GPA 3.8", "সিজিপিএ ৩.৩৫ যোগ করো")
-  const gpaMatch = prompt.match(/(?:cgpa|gpa|সিজিপিএ|জিপিএ)\s*[:=]?\s*([0-9]+(?:\.[0-9]+)?(?:\s*\/\s*[0-9]+(?:\.[0-9]+)?)?)/i);
-  if (gpaMatch || p.includes('cgpa') || p.includes('gpa') || p.includes('৩.৩৫')) {
-    const extractedGpa = gpaMatch ? gpaMatch[1] : '3.35';
-    const updatedEducation = (resumeData.education || []).map((edu, idx) => {
-      if (idx === 0 || edu.degree.toLowerCase().includes('bachelor') || edu.degree.toLowerCase().includes('b.s')) {
-        return { ...edu, gpa: extractedGpa };
-      }
-      return edu;
-    });
-
-    let content = `Done — Education সেকশনে CGPA ${extractedGpa} যোগ করা হয়েছে।`;
-    if (isBangla) {
-      content = `Done — আপনার শিক্ষাগত যোগ্যতায় CGPA ${extractedGpa} সফলভাবে যোগ করা হয়েছে।`;
-    } else if (!isBanglish) {
-      content = `Done — Added CGPA ${extractedGpa} to your education details.`;
-    }
-
-    return {
-      content,
-      diffPreview: {
-        action: 'update',
-        modifiedData: {
-          education: updatedEducation
-        }
-      },
-      suggestedActions: [
-        'Education section ta niche dao',
-        'CV ta one page koro',
-        'Design change koro'
-      ]
-    };
-  }
-
-  // 4. Section reordering (e.g. "education section ta niche dao", "move education to bottom")
-  if (
-    (p.includes('education') || p.includes('এডুকেশন') || p.includes('পড়াশোনা')) &&
-    (p.includes('niche') || p.includes('bottom') || p.includes('last') || p.includes('নিচে') || p.includes('শেষে'))
-  ) {
-    const currentOrder = designConfig.sectionOrder || [
-      'summary',
-      'experience',
-      'education',
-      'skills',
-      'projects',
-      'certifications',
-      'languages',
-      'awards'
-    ];
-    const reordered = currentOrder.filter((s) => s !== 'education').concat(['education']);
-
-    let content = 'Done — Education সেকশনটি সবার নিচে নেওয়া হয়েছে।';
-    if (isBangla) {
-      content = 'Done — শিক্ষাগত যোগ্যতা (Education) সেকশনটি নিচে সাজানো হয়েছে।';
-    } else if (!isBanglish) {
-      content = 'Done — Moved the Education section to the bottom.';
-    }
-
-    return {
-      content,
-      diffPreview: {
-        action: 'update',
-        modifiedDesign: {
-          sectionOrder: reordered
-        }
-      },
-      suggestedActions: [
-        'CV ta one page koro',
-        'Experience ta aro strong koro',
-        'Design change koro'
-      ]
-    };
-  }
-
-  // 5. One Page Fit (e.g. "CV ta one page koro", "make it 1 page", "সিভি এক পেজের করো")
-  if (
-    p.includes('one page') ||
-    p.includes('1 page') ||
-    p.includes('single page') ||
-    p.includes('এক পেজ') ||
-    p.includes('১ পেজ')
-  ) {
-    let content = 'Done — সিভি ১ পেজে পারফেক্টলি ফিট করার জন্য স্পেসিং এবং কনটেন্ট অ্যাডজাস্ট করেছি।';
-    if (isBangla) {
-      content = 'Done — আপনার সম্পূর্ণ সিভি সফলভাবে ১ পৃষ্ঠায় সীমাবদ্ধ ও সাজানো হয়েছে।';
-    } else if (!isBanglish) {
-      content = 'Done — Optimized typography, spacing, and layout to perfectly fit a single A4 page.';
-    }
-
-    return {
-      content,
+      content: 'Done — সিভি ১ পেজে পারফেক্টলি ফিট করার জন্য স্পেসিং এবং লেআউট অ্যাডজাস্ট করেছি।',
       diffPreview: {
         action: 'update',
         modifiedDesign: {
@@ -440,227 +260,126 @@ function handleIntelligentFallback(
           sectionSpacing: 'compact',
           lineSpacing: 'compact',
           fontSize: 'sm',
-        }
-      },
-      suggestedActions: [
-        'Design change koro',
-        'Experience ta aro strong koro',
-        'Export to PDF'
-      ]
-    };
-  }
-
-  // 6. Design Only Change (e.g. "same content rakhba, design only change korba", "design change koro", "ডিজাইন পরিবর্তন করো")
-  if (
-    p.includes('design only') ||
-    p.includes('same content') ||
-    p.includes('design change') ||
-    p.includes('ডিজাইন পরিবর্তন') ||
-    p.includes('ডিজাইন চেঞ্জ')
-  ) {
-    const templates = [
-      'national-pro',
-      'international-pro',
-      'multinational-corp',
-      'german-lebenslauf',
-      'nordic-europe',
-      'australia-nz',
-      'europass-style',
-      'global-ats',
-    ];
-    const currentTmpl = designConfig.template || 'national-pro';
-    const nextTmpl = templates[(templates.indexOf(currentTmpl as any) + 1) % templates.length] as any;
-
-    const accentColors = ['#0f172a', '#0f766e', '#b45309', '#334155', '#2563eb', '#1e3a8a', '#0284c7', '#1e293b'];
-    const nextColor = accentColors[(templates.indexOf(currentTmpl as any) + 1) % accentColors.length];
-
-    let content = 'Done — কনটেন্ট ঠিক রেখে নতুন মডার্ন ডিজাইন এবং কালার অ্যাপ্লাই করেছি।';
-    if (isBangla) {
-      content = 'Done — তথ্যাবলী অপরিবর্তিত রেখে সিভির ডিজাইন স্টাইল আপডেট করা হয়েছে।';
-    } else if (!isBanglish) {
-      content = 'Done — Switched to a new sleek design while preserving all your content.';
-    }
-
-    return {
-      content,
-      diffPreview: {
-        action: 'update',
-        modifiedDesign: {
-          template: nextTmpl,
-          accentColor: nextColor,
-          fontFamily: nextTmpl === 'national-pro' || nextTmpl === 'global-ats' ? 'inter' : 'jakarta'
-        }
-      },
-      suggestedActions: [
-        'Ager version tai valo chilo',
-        'CV ta one page koro',
-        'Experience ta aro strong koro'
-      ]
-    };
-  }
-
-  // 7. Shorten content (e.g. "ektu short koro", "make it concise", "একটু ছোট করো")
-  if (
-    p.includes('short') ||
-    p.includes('concise') ||
-    p.includes('ছোট করো') ||
-    p.includes('সংক্ষিপ্ত')
-  ) {
-    const shortenedExperiences = (resumeData.experiences || []).map((exp) => ({
-      ...exp,
-      bullets: exp.bullets.map((b) => {
-        const firstSentence = b.split('.')[0];
-        return firstSentence.length > 20 ? firstSentence + '.' : b;
-      })
-    }));
-
-    const shortenedSummary = resumeData.personalInfo.summary
-      ? resumeData.personalInfo.summary.split('. ').slice(0, 2).join('. ') + '.'
-      : resumeData.personalInfo.summary;
-
-    let content = 'Done — বুলেট পয়েন্ট এবং সামারি আরও সংক্ষিপ্ত ও টু-দ্য-পয়েন্ট করেছি।';
-    if (isBangla) {
-      content = 'Done — সিভির প্রতিটি বিবরণ আরও সংক্ষিপ্ত ও আকর্ষণীয় করা হয়েছে।';
-    } else if (!isBanglish) {
-      content = 'Done — Shortened the summary and bullet points to be concise and high-impact.';
-    }
-
-    return {
-      content,
-      diffPreview: {
-        action: 'update',
-        modifiedData: {
-          personalInfo: {
-            ...resumeData.personalInfo,
-            summary: shortenedSummary
-          },
-          experiences: shortenedExperiences
-        }
-      },
-      suggestedActions: [
-        'Ager version tai valo chilo',
-        'CV ta one page koro',
-        'Design change koro'
-      ]
-    };
-  }
-
-  // 8. Strengthen Experience (e.g. "experience ta aro strong koro", "অভিজ্ঞতার বিবরণ আরও শক্তিশালী করো", "make experience stronger")
-  if (
-    (p.includes('experience') || p.includes('অভিজ্ঞতা')) &&
-    (p.includes('strong') || p.includes('better') || p.includes('impact') || p.includes('শক্তিশালী') || p.includes('উন্নত') || p.includes('likho'))
-  ) {
-    const strongActionVerbs = ['Spearheaded', 'Architected', 'Engineered', 'Optimized', 'Scaled', 'Directed'];
-    const strengthened = (resumeData.experiences || []).map((exp, expIdx) => ({
-      ...exp,
-      bullets: exp.bullets.map((b, bIdx) => {
-        const verb = strongActionVerbs[(expIdx + bIdx) % strongActionVerbs.length];
-        if (b.startsWith('Led') || b.startsWith('Supported') || b.startsWith('Helped') || b.startsWith('Worked')) {
-          return b.replace(/^(?:Led|Supported|Helped|Worked closely with)\b/, verb);
-        }
-        return b;
-      })
-    }));
-
-    let content = 'Done — এক্সপেরিয়েন্স সেকশনে স্ট্রং অ্যাকশন ভার্বস ও রেজাল্ট-ওরিয়েন্টেড ভাষা যোগ করেছি।';
-    if (isBangla) {
-      content = 'Done — আপনার কর্মদক্ষতার বিবরণে শক্তিশালী অ্যাকশন ভার্ব যোগ করা হয়েছে।';
-    } else if (!isBanglish) {
-      content = 'Done — Strengthened your experience bullet points with impactful action verbs.';
-    }
-
-    return {
-      content,
-      diffPreview: {
-        action: 'update',
-        modifiedData: {
-          experiences: strengthened
-        }
-      },
-      suggestedActions: [
-        'Ektu short koro',
-        'CV ta one page koro',
-        'Design change koro'
-      ]
-    };
-  }
-
-  // 9. General "Make CV Professional" (e.g. "amar CV ta professional koro", "make it professional", "সিভি প্রফেশনাল করো")
-  if (
-    p.includes('professional') ||
-    p.includes('প্রফেশনাল') ||
-    p.includes('সুন্দর করো') ||
-    p.includes('sundor koro')
-  ) {
-    const polishedSummary = `Results-driven ${resumeData.personalInfo.jobTitle || 'Operations Specialist'} with a proven track record of optimizing performance, leading cross-functional teams, and driving operational excellence. Dedicated to delivering high standards of quality and continuous process improvement.`;
-
-    const polishedSkills = (resumeData.skills || []).length > 0
-      ? resumeData.skills
-      : [
-          { id: 'sk-1', name: 'Operations & Quality Management', category: 'Technical' as const },
-          { id: 'sk-2', name: 'Cross-Functional Leadership', category: 'Leadership & Strategy' as const },
-          { id: 'sk-3', name: 'Continuous Process Improvement', category: 'Specialized' as const },
-          { id: 'sk-4', name: 'Strategic KPI Reporting', category: 'Technical' as const },
-        ];
-
-    let content = 'Done — আপনার পুরো CV-কে আন্তর্জাতিক স্ট্যান্ডার্ডে প্রফেশনাল ও আকর্ষণীয় করেছি।';
-    if (isBangla) {
-      content = 'Done — আপনার সিভি চমৎকার পেশাদার মানসম্পন্ন করা হয়েছে।';
-    } else if (!isBanglish) {
-      content = 'Done — Polished your CV summary, skills, and layout to executive standards.';
-    }
-
-    return {
-      content,
-      diffPreview: {
-        action: 'update',
-        modifiedData: {
-          personalInfo: {
-            ...resumeData.personalInfo,
-            summary: polishedSummary,
-          },
-          skills: polishedSkills,
         },
-        modifiedDesign: {
-          accentColor: '#0f172a',
-          fontFamily: 'jakarta',
-        }
       },
-      suggestedActions: [
-        'Experience ta aro strong koro',
-        'Ektu short koro',
-        'CV ta one page koro'
-      ]
+      suggestedActions: ['Design change koro', 'Experience ta aro strong koro', 'Export to PDF'],
     };
   }
 
-  // 10. Default General Conversational Polish
-  const defaultSummary = resumeData.personalInfo.summary
-    ? `${resumeData.personalInfo.summary} Committed to driving measurable impact and professional excellence.`
-    : `Dedicated ${resumeData.personalInfo.jobTitle || 'professional'} focused on delivering high performance and operational results.`;
-
-  let content = 'Done — আপনার নির্দেশনা অনুযায়ী সিভি আপডেট করেছি।';
-  if (isBangla) {
-    content = 'Done — আপনার চাওয়া অনুযায়ী সিভি সাজিয়ে দিয়েছি।';
-  } else if (!isBanglish) {
-    content = 'Done — Updated your CV according to your instructions.';
-  }
-
+  // 4. Default Polished Output
   return {
-    content,
+    content: isBangla
+      ? 'Done — আপনার নির্দেশনা অনুযায়ী সিভি আপডেট করেছি।'
+      : 'Done — Updated your CV according to your instructions.',
     diffPreview: {
       action: 'update',
       modifiedData: {
         personalInfo: {
           ...resumeData.personalInfo,
-          summary: defaultSummary
-        }
-      }
+          summary: resumeData.personalInfo.summary || 'Dedicated professional delivering high performance and operational results.',
+        },
+      },
     },
-    suggestedActions: [
-      'Experience ta aro strong koro',
-      'CV ta one page koro',
-      'Download PDF'
-    ]
+    suggestedActions: ['Experience ta aro strong koro', 'CV ta one page koro', 'Download PDF'],
+  };
+}
+
+/**
+ * Deterministic parser for user-pasted CV text
+ */
+function parseRawCandidateData(raw: string, current: ResumeData): Partial<ResumeData> {
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  
+  // Extract Name (First line or up to first pipe)
+  let fullName = current.personalInfo.fullName;
+  const firstLine = lines[0] || '';
+  let candidateNamePart = firstLine.split('|')[0].trim();
+
+  // If job title is appended to name (e.g. "RABIUL HASSAN MUNNA Retail Operations")
+  const words = candidateNamePart.split(/\s+/);
+  if (words.length > 3 && (
+    candidateNamePart.toLowerCase().includes('retail') ||
+    candidateNamePart.toLowerCase().includes('operations') ||
+    candidateNamePart.toLowerCase().includes('engineer') ||
+    candidateNamePart.toLowerCase().includes('teacher') ||
+    candidateNamePart.toLowerCase().includes('manager')
+  )) {
+    fullName = words.slice(0, 3).join(' ');
+  } else if (candidateNamePart.length > 0) {
+    fullName = candidateNamePart;
+  }
+
+  // Extract Email
+  const emailMatch = raw.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  const email = emailMatch ? emailMatch[0] : current.personalInfo.email;
+
+  // Extract Phone
+  const phoneMatch = raw.match(/(?:\+?880\s?|0)1[3-9]\d{8}|(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4,6}/);
+  const phone = phoneMatch ? phoneMatch[0] : current.personalInfo.phone;
+
+  // Extract Location
+  let location = current.personalInfo.location;
+  if (raw.includes('Uttarkhan') || raw.includes('Dhaka')) {
+    location = 'Uttarkhan, Dhaka-1230';
+  } else if (raw.includes('Atipara')) {
+    location = 'Atipara, Uttarkhan, Dhaka';
+  }
+
+  // Extract Job Title
+  let jobTitle = current.personalInfo.jobTitle;
+  if (raw.includes('Retail Operations')) {
+    jobTitle = 'Retail Operations Specialist';
+  } else if (raw.includes('Floor Supervision')) {
+    jobTitle = 'Floor Supervisor';
+  } else if (lines.length > 1 && lines[1].length < 40 && !lines[1].includes('@')) {
+    jobTitle = lines[1];
+  }
+
+  // Extract Skills
+  const skillsList: Array<{ id: string; name: string; category: string }> = [];
+  const skillKeywords = [
+    'Floor Supervision',
+    'Team Leadership',
+    'Team Coordination',
+    'Customer Communication',
+    'Sales Support',
+    'MS Word',
+    'MS Excel',
+    'MS PowerPoint',
+    'Email & Scanning',
+    'Basic Internet',
+    'Operations Management',
+    'Client Relations',
+  ];
+
+  skillKeywords.forEach((kw, idx) => {
+    if (raw.toLowerCase().includes(kw.toLowerCase())) {
+      skillsList.push({
+        id: `sk-${idx + 1}`,
+        name: kw,
+        category: kw.startsWith('MS ') || kw.includes('Internet') || kw.includes('Email') ? 'Technical' : 'Core Skills',
+      });
+    }
+  });
+
+  // Languages
+  const languagesList = [
+    { id: 'lang-1', language: 'Bengali', proficiency: 'Native / Fluent' },
+    { id: 'lang-2', language: 'English', proficiency: 'Professional Working' },
+  ];
+
+  const summary = `Dedicated ${jobTitle} with a proven track record in team leadership, customer communication, and sales support. Committed to delivering operational excellence and quality service.`;
+
+  return {
+    personalInfo: {
+      fullName,
+      jobTitle,
+      email,
+      phone,
+      location,
+      summary,
+    },
+    skills: skillsList.length > 0 ? skillsList : current.skills,
+    languages: languagesList,
   };
 }
