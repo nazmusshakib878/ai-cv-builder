@@ -4,6 +4,7 @@ import mammoth from 'mammoth';
 import { checkRateLimit, getClientIdentifier } from '@/utils/rateLimiter';
 import { aiProvider } from '@/utils/aiProvider';
 import { ResumeData } from '@/types/resume';
+import { normalizeResumeData } from '@/utils/typeNormalizers';
 
 export const runtime = 'nodejs';
 
@@ -97,7 +98,7 @@ export async function POST(req: Request) {
           file.type || 'image/jpeg'
         );
         if (parsedImageCV && parsedImageCV.personalInfo) {
-          return NextResponse.json({ resumeData: parsedImageCV });
+          return NextResponse.json({ resumeData: normalizeResumeData(parsedImageCV) });
         }
       } catch (visionErr: any) {
         console.warn('Gemini vision parsing fallback:', visionErr.message);
@@ -124,7 +125,9 @@ Schema:
         );
 
         if (aiResponse.diffPreview?.modifiedData) {
-          return NextResponse.json({ resumeData: aiResponse.diffPreview.modifiedData });
+          return NextResponse.json({
+            resumeData: normalizeResumeData(aiResponse.diffPreview.modifiedData),
+          });
         }
       } catch (aiErr: any) {
         console.warn('AI parser fallback:', aiErr.message);
@@ -133,7 +136,7 @@ Schema:
 
     // 6. Fast Rule-Based Fallback Parser
     const fallbackParsed = parseCVRuleBased(extractedText);
-    return NextResponse.json({ resumeData: fallbackParsed });
+    return NextResponse.json({ resumeData: normalizeResumeData(fallbackParsed) });
   } catch (error: any) {
     console.error('Upload Error:', error);
     return NextResponse.json({ error: error.message || 'File parsing failed' }, { status: 500 });

@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
-import { ResumeData, DesignConfig } from '@/types/resume';
+import { ResumeData, DesignConfig, SkillItem, LanguageItem } from '@/types/resume';
 import { checkRateLimit, getClientIdentifier } from '@/utils/rateLimiter';
 import { aiProvider } from '@/utils/aiProvider';
+import {
+  normalizeResumeData,
+  normalizeSkillCategory,
+  normalizeLanguageProficiency,
+} from '@/utils/typeNormalizers';
 
 // Ensure this only runs on the server
 export const runtime = 'nodejs';
@@ -78,13 +83,13 @@ You converse naturally with the user in Bengali (বাংলা), Banglish, or 
 
 CRITICAL RULES:
 1. USER PROFILE / CV DATA INPUT:
-   - When the user pastes their candidate details, raw CV text, bio, contact info (phone/email/address), work history, skills, or education into the chat:
+   - When the user pastes candidate details, raw CV text, bio, contact info (phone/email/address), work history, skills, or education into the chat:
    - You MUST EXTRACT and OVERWRITE all corresponding fields in "modifiedData":
      * personalInfo: { fullName, jobTitle, email, phone, location, summary }
      * experiences: [ { id, company, role, location, startDate, endDate, current, bullets: [] } ]
      * education: [ { id, institution, degree, field, location, startDate, endDate, gpa } ]
-     * skills: [ { id, name, category } ]
-     * languages: [ { id, language, proficiency } ]
+     * skills: [ { id, name, category: "Technical" | "Leadership & Strategy" | "Tools & Platforms" | "Specialized" } ]
+     * languages: [ { id, language, proficiency: "Native" | "Fluent" | "Professional" | "Conversational" } ]
    - Never keep placeholder sample names (like Alexandre Morgan) when the user provides their real name!
 
 2. NATURAL & CONCISE REPLIES:
@@ -133,6 +138,9 @@ JSON Schema to return:
         { resumeData, designConfig }
       );
       if (aiResult && aiResult.content && aiResult.diffPreview) {
+        if (aiResult.diffPreview.modifiedData) {
+          aiResult.diffPreview.modifiedData = normalizeResumeData(aiResult.diffPreview.modifiedData);
+        }
         return NextResponse.json(aiResult);
       }
     } catch (aiErr: any) {
@@ -184,7 +192,7 @@ function handleIntelligentFallback(
       content,
       diffPreview: {
         action: 'update',
-        modifiedData: parsed,
+        modifiedData: normalizeResumeData(parsed),
         modifiedDesign: {
           template: 'national-pro',
           accentColor: '#0f172a',
@@ -329,7 +337,7 @@ function parseRawCandidateData(raw: string, current: ResumeData): Partial<Resume
   }
 
   // Extract Skills dynamically from bullet points or skill headers
-  const skillsList: Array<{ id: string; name: string; category: string }> = [];
+  const skillsList: SkillItem[] = [];
   const skillMatches = raw.match(/(?:•|\*|-)\s*([^•*\n|]+)/g);
   if (skillMatches && skillMatches.length > 0) {
     skillMatches.slice(0, 15).forEach((sm, idx) => {
@@ -338,16 +346,20 @@ function parseRawCandidateData(raw: string, current: ResumeData): Partial<Resume
         skillsList.push({
           id: `sk-${idx + 1}`,
           name: cleanName,
-          category: 'Technical',
+          category: normalizeSkillCategory(
+            cleanName.startsWith('MS ') || cleanName.includes('Internet') || cleanName.includes('Email')
+              ? 'Tools & Platforms'
+              : 'Technical'
+          ),
         });
       }
     });
   }
 
   // Languages dynamically
-  const languagesList = [
-    { id: 'lang-1', language: 'Bengali', proficiency: 'Native / Fluent' },
-    { id: 'lang-2', language: 'English', proficiency: 'Professional Working' },
+  const languagesList: LanguageItem[] = [
+    { id: 'lang-1', language: 'Bengali', proficiency: normalizeLanguageProficiency('Native') },
+    { id: 'lang-2', language: 'English', proficiency: normalizeLanguageProficiency('Professional') },
   ];
 
   const summary = `Dedicated ${jobTitle} with demonstrated expertise in operational delivery, cross-functional collaboration, and professional excellence.`;
