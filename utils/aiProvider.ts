@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 import { ResumeData, DesignConfig } from '@/types/resume';
+import { normalizeResumeData } from '@/utils/typeNormalizers';
 
 export interface AIResponse {
   content: string;
@@ -16,6 +17,14 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
 }
+
+const ACTIVE_GEMINI_MODELS = [
+  'gemini-3.5-flash-lite',
+  'gemini-flash-lite-latest',
+  'gemini-3.5-flash',
+  'gemini-3.6-flash',
+  'gemini-3.7-flash',
+];
 
 function timeoutPromise<T>(promise: Promise<T>, ms: number, errorMsg: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -85,7 +94,186 @@ class AIProviderService {
   }
 
   /**
-   * Call Google Gemini API (3.6 / 3.7 Flash free tier) with timeout
+   * Dedicated Stage 1 High-Fidelity Full CV Extraction
+   * Extracts every factual detail faithfully without shortening or omitting data.
+   */
+  public async extractFullCVFromText(
+    rawText: string,
+    isRetry: boolean = false
+  ): Promise<{ data: Partial<ResumeData>; providerUsed: 'gemini' | 'openai' }> {
+    const prompt = `
+You are an expert CV data extraction engine.
+Your task is to extract every factual detail from the candidate's CV text into a structured JSON object.
+
+${isRetry ? 'IMPORTANT: Previous attempt was incomplete. Be extra thorough: capture all jobs, all companies, all dates, all education degrees/institutions, all skills, and clean contact info.' : ''}
+
+CRITICAL EXTRACTION RULES:
+1. FAITHFUL & COMPLETE EXTRACTION:
+   - Extract all facts EXACTLY as written in the text.
+   - DO NOT summarize, shorten, or truncate the candidate's career data.
+   - DO NOT omit companies, degrees, dates, bullet points, skills, or certifications.
+   - Capture every work experience separately with all its bullets.
+   - Capture every education entry (Degree, Institution, Dates, GPA/Result).
+
+2. STRICT CONTACT FIELD ISOLATION:
+   - NEVER place email, phone number, address, or LinkedIn URL inside the summary!
+   - personalInfo.email = candidate's email address
+   - personalInfo.phone = candidate's phone number
+   - personalInfo.location = candidate's city / address
+   - personalInfo.linkedin = candidate's LinkedIn URL (if present)
+   - personalInfo.summary = ONLY genuine career profile text. If no summary exists in the source, leave it empty or write a factual 1-sentence summary based strictly on the extracted title and field.
+
+3. SKILLS & LANGUAGES NORMALIZATION:
+   - Categorize every skill into: "Technical" | "Leadership & Strategy" | "Tools & Platforms" | "Specialized".
+   - Categorize language proficiency into: "Native" | "Fluent" | "Professional" | "Conversational".
+
+4. OUTPUT FORMAT:
+   Return ONLY a valid JSON object matching this schema:
+   {
+     "personalInfo": {
+       "fullName": "...",
+       "jobTitle": "...",
+       "email": "...",
+       "phone": "...",
+       "location": "...",
+       "linkedin": "...",
+       "github": "...",
+       "portfolio": "...",
+       "summary": "..."
+     },
+     "experiences": [
+       {
+         "id": "exp-1",
+         "company": "...",
+         "role": "...",
+         "location": "...",
+         "startDate": "...",
+         "endDate": "...",
+         "current": false,
+         "bullets": ["...", "..."]
+       }
+     ],
+     "education": [
+       {
+         "id": "edu-1",
+         "institution": "...",
+         "degree": "...",
+         "field": "...",
+         "location": "...",
+         "startDate": "...",
+         "endDate": "...",
+         "gpa": "..."
+       }
+     ],
+     "skills": [
+       {
+         "id": "sk-1",
+         "name": "...",
+         "category": "Technical"
+       }
+     ],
+     "projects": [
+       {
+         "id": "proj-1",
+         "title": "...",
+         "role": "...",
+         "link": "...",
+         "bullets": ["..."],
+         "techStack": ["..."]
+       }
+     ],
+     "certifications": [
+       {
+         "id": "cert-1",
+         "name": "...",
+         "issuer": "...",
+         "date": "...",
+         "credentialId": "...",
+         "link": "..."
+       }
+     ],
+     "languages": [
+       {
+         "id": "lang-1",
+         "language": "...",
+         "proficiency": "Professional"
+       }
+     ],
+     "awards": [
+       {
+         "id": "aw-1",
+         "title": "...",
+         "issuer": "...",
+         "year": "...",
+         "description": "..."
+       }
+     ]
+   }
+
+CV SOURCE TEXT:
+${rawText}
+`;
+
+    if (this.geminiClient) {
+      for (const modelName of ACTIVE_GEMINI_MODELS) {
+        try {
+          const model = this.geminiClient.getGenerativeModel({
+            model: modelName,
+            generationConfig: {
+              temperature: 0.1,
+              responseMimeType: 'application/json',
+            },
+          });
+
+          const result = await timeoutPromise(
+            model.generateContent(prompt),
+            15000,
+            `Gemini extraction on model ${modelName} timed out`
+          );
+
+          const text = result.response.text();
+          const cleaned = text.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+          const parsed = JSON.parse(cleaned);
+
+          return {
+            data: normalizeResumeData(parsed),
+            providerUsed: 'gemini',
+          };
+        } catch (err: any) {
+          console.warn(`[Gemini Extraction] ${modelName} failed: ${err.message}. Trying next model...`);
+        }
+      }
+    }
+
+    if (this.openaiClient) {
+      try {
+        const completion = await timeoutPromise(
+          this.openaiClient.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'user', content: prompt }],
+            response_format: { type: 'json_object' },
+            temperature: 0.1,
+          }),
+          15000,
+          'OpenAI extraction timed out'
+        );
+
+        const content = completion.choices[0]?.message?.content || '{}';
+        const parsed = JSON.parse(content);
+        return {
+          data: normalizeResumeData(parsed),
+          providerUsed: 'openai',
+        };
+      } catch (err: any) {
+        console.warn(`[OpenAI Extraction] failed: ${err.message}`);
+      }
+    }
+
+    throw new Error('AI extraction service unavailable');
+  }
+
+  /**
+   * Call Google Gemini API for chat turns
    */
   private async callGemini(
     systemPrompt: string,
@@ -95,7 +283,6 @@ class AIProviderService {
   ): Promise<AIResponse> {
     if (!this.geminiClient) throw new Error('Gemini client not initialized.');
 
-    const models = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-3.7-flash'];
     let lastError: any = null;
 
     const fullPrompt = `
@@ -115,7 +302,7 @@ ${userPrompt}
 
 IMPORTANT: Respond with ONLY a valid JSON object matching the schema. No markdown backticks, no markdown code fence.`;
 
-    for (const modelName of models) {
+    for (const modelName of ACTIVE_GEMINI_MODELS) {
       try {
         const model = this.geminiClient.getGenerativeModel({
           model: modelName,
@@ -209,11 +396,12 @@ IMPORTANT: Respond with ONLY a valid JSON object matching the schema. No markdow
       throw new Error('Gemini API client is required for multimodal vision analysis.');
     }
 
-    const models = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash-image'];
+    const visionModels = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.5-flash'];
 
     const prompt = `
 ${instruction}
 
+First extract facts exactly. Do not shorten or omit data.
 Extract all information and return ONLY a JSON object with this structure:
 {
   "personalInfo": {
@@ -222,6 +410,9 @@ Extract all information and return ONLY a JSON object with this structure:
     "email": "...",
     "phone": "...",
     "location": "...",
+    "linkedin": "...",
+    "github": "...",
+    "portfolio": "...",
     "summary": "..."
   },
   "experiences": [
@@ -254,10 +445,17 @@ Extract all information and return ONLY a JSON object with this structure:
       "name": "...",
       "category": "Technical"
     }
+  ],
+  "languages": [
+    {
+      "id": "lang-1",
+      "language": "...",
+      "proficiency": "Professional"
+    }
   ]
 }`;
 
-    for (const modelName of models) {
+    for (const modelName of visionModels) {
       try {
         const model = this.geminiClient.getGenerativeModel({
           model: modelName,
@@ -277,13 +475,14 @@ Extract all information and return ONLY a JSON object with this structure:
               },
             },
           ]),
-          8000,
-          `Gemini vision model ${modelName} timed out after 8s`
+          15000,
+          `Gemini vision model ${modelName} timed out after 15s`
         );
 
         const text = result.response.text();
         const cleaned = text.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
-        return JSON.parse(cleaned);
+        const parsed = JSON.parse(cleaned);
+        return normalizeResumeData(parsed);
       } catch (err: any) {
         console.warn(`[Gemini Vision] ${modelName} failed: ${err.message}`);
       }

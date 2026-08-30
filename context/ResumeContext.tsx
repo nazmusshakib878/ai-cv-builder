@@ -834,17 +834,19 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     ]);
   }, []);
 
+  // -------------------------------------------------------------
+  // CV UPLOAD & NATURAL LANGUAGE CREATION
+  // -------------------------------------------------------------
   const uploadCVData = useCallback(async (file: File) => {
     setAppMode('workspace');
     setIsAiThinking(true);
-    setMessages([
-      {
-        id: 'msg-upload-1',
-        role: 'assistant',
-        content: `📄 **Uploading & Parsing "${file.name}"...**\n\nAI is reading your experience, skills, and education to build your modern CV.`,
-        timestamp: 'Just now',
-      },
-    ]);
+    const starterMsg: ChatMessage = {
+      id: 'msg-upload-1',
+      role: 'assistant',
+      content: `📄 **Uploading & Parsing "${file.name}"...**\n\nAI is reading your experience, skills, and education to build your modern CV.`,
+      timestamp: 'Just now',
+    };
+    setMessages([starterMsg]);
 
     try {
       const formData = new FormData();
@@ -855,118 +857,204 @@ export const ResumeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         body: formData,
       });
 
-      if (res.ok) {
-        const json = await res.json();
-        if (json.resumeData) {
-          setResumeData(json.resumeData);
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: 'msg-upload-done',
-              role: 'assistant',
-              content: `🎉 **Awesome! I converted your CV into our modern template.**\n\nAll your experience, education, and skills have been formatted cleanly on the right.\n\nWhat would you like to polish next?`,
-              timestamp: 'Just now',
-              suggestedActions: FRIENDLY_SUGGESTIONS,
-            },
-          ]);
-        }
+      const json = await res.json().catch(() => ({}));
+
+      if (res.ok && json.success && json.resumeData) {
+        const candidateName = json.resumeData.personalInfo?.fullName || 'Candidate';
+        const candidateTitle = json.resumeData.personalInfo?.jobTitle || 'Professional Specialist';
+        const newResumeId = 'res-' + Date.now();
+
+        const cleanResumeData: ResumeData = {
+          id: newResumeId,
+          title: `${candidateName} - ${candidateTitle}`,
+          updatedAt: 'Just now',
+          personalInfo: {
+            fullName: candidateName,
+            jobTitle: candidateTitle,
+            email: json.resumeData.personalInfo?.email || '',
+            phone: json.resumeData.personalInfo?.phone || '',
+            location: json.resumeData.personalInfo?.location || '',
+            linkedin: json.resumeData.personalInfo?.linkedin || '',
+            github: json.resumeData.personalInfo?.github || '',
+            portfolio: json.resumeData.personalInfo?.portfolio || '',
+            summary: json.resumeData.personalInfo?.summary || '',
+            photoUrl: json.resumeData.personalInfo?.photoUrl || undefined,
+          },
+          experiences: json.resumeData.experiences || [],
+          education: json.resumeData.education || [],
+          skills: json.resumeData.skills || [],
+          projects: json.resumeData.projects || [],
+          certifications: json.resumeData.certifications || [],
+          languages: json.resumeData.languages || [],
+          awards: json.resumeData.awards || [],
+        };
+
+        setCurrentResumeId(newResumeId);
+        setActiveResumeId(newResumeId);
+        setResumeData(cleanResumeData);
+        setPaymentStatus('free');
+        setVersionHistory([
+          {
+            id: 'v-init',
+            timestamp: 'Just now',
+            description: `Imported from ${file.name}`,
+            data: cleanResumeData,
+            design: designConfig,
+          },
+        ]);
+
+        const doneMsg: ChatMessage = {
+          id: 'msg-upload-done-' + Date.now(),
+          role: 'assistant',
+          content: `🎉 **Awesome! I converted your CV into our modern template.**\n\nAll your experience, education, and skills have been formatted cleanly on the right.\n\nWhat would you like to polish next?`,
+          timestamp: 'Just now',
+          suggestedActions: FRIENDLY_SUGGESTIONS,
+        };
+
+        const finalMessages = [starterMsg, doneMsg];
+        setMessages(finalMessages);
+        triggerAutoSave(cleanResumeData, designConfig, finalMessages);
+        await refreshResumesList();
+      } else {
+        const errorMsg: ChatMessage = {
+          id: 'msg-upload-err-' + Date.now(),
+          role: 'assistant',
+          content: `⚠️ **আমরা আপনার CV সঠিকভাবে পড়তে পারিনি।**\n\n${
+            json.error || 'দয়া করে একটি স্পষ্ট PDF বা Word ডকুমেন্ট আপলোড করুন এবং আবার চেষ্টা করুন।'
+          }`,
+          timestamp: 'Just now',
+          suggestedActions: ['Try uploading again', 'Create New CV', 'Talk to AI'],
+        };
+        setMessages([starterMsg, errorMsg]);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('CV Upload Error:', e);
+      setMessages([
+        starterMsg,
+        {
+          id: 'msg-upload-err-' + Date.now(),
+          role: 'assistant',
+          content: `⚠️ **আমরা আপনার CV সঠিকভাবে পড়তে পারিনি। আবার চেষ্টা করুন।**\n\n${
+            e.message || 'নেটওয়ার্ক সমস্যা হয়েছে।'
+          }`,
+          timestamp: 'Just now',
+          suggestedActions: ['Try uploading again', 'Create New CV'],
+        },
+      ]);
     } finally {
       setIsAiThinking(false);
     }
-  }, []);
+  }, [designConfig, refreshResumesList, triggerAutoSave]);
 
-  const tellAIAboutMeFlow = useCallback(async (userInput: string) => {
-    setAppMode('workspace');
-    setIsAiThinking(true);
-    setMessages([
-      {
+  const tellAIAboutMeFlow = useCallback(
+    async (userInput: string) => {
+      setAppMode('workspace');
+      setIsAiThinking(true);
+      const starterMsg: ChatMessage = {
         id: 'msg-nl-1',
         role: 'assistant',
-        content: `✍️ **Creating your customized CV from your story...**`,
+        content: `✍️ **Creating your customized CV from your story...**\n\nAnalyzing career history and structuring your resume.`,
         timestamp: 'Just now',
-      },
-    ]);
+      };
+      setMessages([starterMsg]);
 
-    const inputLower = userInput.toLowerCase();
-    let extractedName = 'Alexandre Morgan';
-    const nameMatch = userInput.match(/(?:i am|my name is|i'm)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
-    if (nameMatch && nameMatch[1]) extractedName = nameMatch[1];
+      try {
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: userInput }),
+        });
 
-    let extractedTitle = 'Professional Specialist';
-    if (inputLower.includes('teacher') || inputLower.includes('education')) extractedTitle = 'Elementary Education Teacher';
-    else if (inputLower.includes('designer') || inputLower.includes('design')) extractedTitle = 'Senior Graphic & UI Designer';
-    else if (inputLower.includes('software') || inputLower.includes('engineer') || inputLower.includes('developer')) extractedTitle = 'Software Engineer';
-    else if (inputLower.includes('sales') || inputLower.includes('account')) extractedTitle = 'Sales & Account Manager';
-    else if (inputLower.includes('nurse') || inputLower.includes('clinical') || inputLower.includes('medical')) extractedTitle = 'Clinical Care Specialist';
-    else if (inputLower.includes('marketing')) extractedTitle = 'Digital Marketing Strategist';
+        const json = await res.json().catch(() => ({}));
 
-    const generatedResume: ResumeData = {
-      id: 'resume-' + Date.now(),
-      title: `${extractedName} - ${extractedTitle}`,
-      updatedAt: 'Just now',
-      personalInfo: {
-        fullName: extractedName,
-        jobTitle: extractedTitle,
-        email: `${extractedName.toLowerCase().replace(/\s+/g, '.')}@gmail.com`,
-        phone: '+1 (555) 234-5678',
-        location: 'San Francisco, CA',
-        summary: `Dedicated and versatile ${extractedTitle} with background in: ${userInput.slice(0, 180)}... Proven record of delivering high-quality results.`,
-      },
-      experiences: [
-        {
-          id: 'exp-nl-1',
-          company: 'Leading Organization',
-          role: extractedTitle,
-          location: 'United States',
-          startDate: '2021',
-          endDate: 'Present',
-          current: true,
-          bullets: [
-            userInput.length > 80 ? userInput.slice(0, 120) + '.' : 'Led core projects delivering measurable improvements in efficiency.',
-            'Collaborated with cross-functional leadership to exceed quarterly goals.',
-            'Implemented best practices that enhanced team productivity and output quality.',
-          ],
-        },
-      ],
-      education: [
-        {
-          id: 'edu-nl-1',
-          institution: 'University College',
-          degree: "Bachelor's Degree",
-          field: extractedTitle.split(' ')[0] + ' Studies',
-          location: 'United States',
-          startDate: '2016',
-          endDate: '2020',
-        },
-      ],
-      skills: [
-        { id: 'sk-1', name: 'Strategic Planning & Execution', category: 'Technical' },
-        { id: 'sk-2', name: 'Cross-Functional Collaboration', category: 'Technical' },
-        { id: 'sk-3', name: 'Process Optimization', category: 'Technical' },
-      ],
-      projects: [],
-      certifications: [],
-      languages: [{ id: 'l1', language: 'English', proficiency: 'Native' }],
-      awards: [],
-    };
+        if (res.ok && json.success && json.resumeData) {
+          const candidateName = json.resumeData.personalInfo?.fullName || 'Candidate';
+          const candidateTitle = json.resumeData.personalInfo?.jobTitle || 'Professional Specialist';
+          const newResumeId = 'res-' + Date.now();
 
-    setResumeData(generatedResume);
-    await new Promise((resolve) => setTimeout(resolve, 600));
+          const cleanResumeData: ResumeData = {
+            id: newResumeId,
+            title: `${candidateName} - ${candidateTitle}`,
+            updatedAt: 'Just now',
+            personalInfo: {
+              fullName: candidateName,
+              jobTitle: candidateTitle,
+              email: json.resumeData.personalInfo?.email || '',
+              phone: json.resumeData.personalInfo?.phone || '',
+              location: json.resumeData.personalInfo?.location || '',
+              linkedin: json.resumeData.personalInfo?.linkedin || '',
+              github: json.resumeData.personalInfo?.github || '',
+              portfolio: json.resumeData.personalInfo?.portfolio || '',
+              summary: json.resumeData.personalInfo?.summary || '',
+              photoUrl: json.resumeData.personalInfo?.photoUrl || undefined,
+            },
+            experiences: json.resumeData.experiences || [],
+            education: json.resumeData.education || [],
+            skills: json.resumeData.skills || [],
+            projects: json.resumeData.projects || [],
+            certifications: json.resumeData.certifications || [],
+            languages: json.resumeData.languages || [],
+            awards: json.resumeData.awards || [],
+          };
 
-    setMessages([
-      {
-        id: 'msg-nl-done',
-        role: 'assistant',
-        content: `🎉 **Your CV is ready!**\n\nI created your CV based on what you told me. Check out the preview on the right!\n\nWhat would you like to improve?`,
-        timestamp: 'Just now',
-        suggestedActions: FRIENDLY_SUGGESTIONS,
-      },
-    ]);
-    setIsAiThinking(false);
-  }, []);
+          setCurrentResumeId(newResumeId);
+          setActiveResumeId(newResumeId);
+          setResumeData(cleanResumeData);
+          setPaymentStatus('free');
+          setVersionHistory([
+            {
+              id: 'v-init',
+              timestamp: 'Just now',
+              description: 'Created from user profile story',
+              data: cleanResumeData,
+              design: designConfig,
+            },
+          ]);
+
+          const doneMsg: ChatMessage = {
+            id: 'msg-nl-done-' + Date.now(),
+            role: 'assistant',
+            content: `🎉 **Awesome! I created your customized CV.**\n\nYour profile has been structured and formatted in the workspace.\n\nWhat would you like to polish next?`,
+            timestamp: 'Just now',
+            suggestedActions: FRIENDLY_SUGGESTIONS,
+          };
+
+          const finalMessages = [starterMsg, doneMsg];
+          setMessages(finalMessages);
+          triggerAutoSave(cleanResumeData, designConfig, finalMessages);
+          await refreshResumesList();
+        } else {
+          setMessages([
+            starterMsg,
+            {
+              id: 'msg-nl-err-' + Date.now(),
+              role: 'assistant',
+              content: `⚠️ **আমরা আপনার তথ্য সঠিকভাবে প্রসেস করতে পারিনি।**\n\n${
+                json.error || 'দয়া করে আপনার কাজের অভিজ্ঞতা বা পড়াশোনার বিবরণ আরেকটু বিস্তারিত লিখুন।'
+              }`,
+              timestamp: 'Just now',
+              suggestedActions: ['Make my CV professional', 'Tell AI about my jobs', 'Download PDF'],
+            },
+          ]);
+        }
+      } catch (err: any) {
+        console.error('Tell AI about me error:', err);
+        setMessages([
+          starterMsg,
+          {
+            id: 'msg-nl-err-' + Date.now(),
+            role: 'assistant',
+            content: `⚠️ **একটি ত্রুটি ঘটেছে। দয়া করে আবার চেষ্টা করুন।**`,
+            timestamp: 'Just now',
+            suggestedActions: ['Make my CV professional', 'Download PDF'],
+          },
+        ]);
+      } finally {
+        setIsAiThinking(false);
+      }
+    },
+    [designConfig, refreshResumesList, triggerAutoSave]
+  );
 
   const loadProfile = useCallback(
     (profileKey: string) => {
