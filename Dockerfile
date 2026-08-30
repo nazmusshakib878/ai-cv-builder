@@ -77,6 +77,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/app ./app
 COPY --from=builder /app/utils ./utils
 COPY --from=builder /app/components ./components
+COPY --from=builder /app/context ./context
 COPY --from=builder /app/data ./data
 COPY --from=builder /app/types ./types
 COPY --from=builder /app/next.config.js ./
