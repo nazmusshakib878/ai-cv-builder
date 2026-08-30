@@ -1,15 +1,10 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { ResumeData, DesignConfig } from '@/types/resume';
 import { checkRateLimit, getClientIdentifier } from '@/utils/rateLimiter';
+import { aiProvider } from '@/utils/aiProvider';
 
 // Ensure this only runs on the server
 export const runtime = 'nodejs';
-
-// Initialize OpenAI client if key is configured
-const apiKey = process.env.OPENAI_API_KEY;
-const isRealOpenAiKey = apiKey && !apiKey.includes('your_api_key') && apiKey.startsWith('sk-');
-const openai = isRealOpenAiKey ? new OpenAI({ apiKey }) : null;
 
 export async function POST(req: Request) {
   try {
@@ -77,11 +72,8 @@ export async function POST(req: Request) {
       });
     }
 
-    // If OpenAI is available, execute with enhanced multi-turn prompt
-    if (openai) {
-      try {
-        const systemPrompt = `
-You are Resumate AI, a friendly, intelligent, and highly competent CV assistant.
+    const systemPrompt = `
+You are Resumate AI, a friendly, intelligent, and highly competent CV assistant powered by Google Gemini.
 You converse naturally with the user, understanding instructions implicitly based on the multi-turn context of the chat.
 
 CRITICAL BEHAVIORAL RULES:
@@ -131,79 +123,58 @@ JSON Schema to return:
 }
 `;
 
-        const messages: any[] = [
-          { role: 'system', content: systemPrompt },
-          {
-            role: 'system',
-            content: `CURRENT CV STATE:\nResumeData:\n${JSON.stringify(resumeData, null, 2)}\n\nDesignConfig:\n${JSON.stringify(designConfig, null, 2)}`
-          }
-        ];
-
-        // Pass up to 20 messages of context history
-        const recentHistory = (history || []).slice(-20).map((msg: any) => ({
-          role: msg.role === 'user' ? 'user' : 'assistant',
-          content: msg.content || ''
-        }));
-
-        messages.push(...recentHistory);
-        messages.push({ role: 'user', content: prompt });
-
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages,
-          response_format: { type: 'json_object' },
-          temperature: 0.6,
-        });
-
-        const aiResponse = completion.choices[0].message.content;
-        if (aiResponse) {
-          const parsed = JSON.parse(aiResponse);
-          return NextResponse.json(parsed);
-        }
-      } catch (openAiErr) {
-        console.warn('OpenAI API call failed, using intelligent fallback engine:', openAiErr);
+    // Try AI Provider (Google Gemini as primary, OpenAI as secondary)
+    try {
+      const aiResult = await aiProvider.generateChatCompletion(
+        systemPrompt,
+        prompt,
+        history,
+        { resumeData, designConfig }
+      );
+      if (aiResult && aiResult.content) {
+        return NextResponse.json(aiResult);
       }
+    } catch (aiErr: any) {
+      console.warn('[AI Route] Provider error, falling back to deterministic NLP parser:', aiErr.message);
     }
 
-    // Intelligent Fallback NLP Processor for real multi-turn conversation handling
-    const result = handleIntelligentFallback(prompt, resumeData, designConfig, history);
-    return NextResponse.json(result);
+    // High-precision fallback for offline/deterministic handling
+    const fallbackResponse = handleIntelligentFallback(prompt, resumeData, designConfig, history);
+    return NextResponse.json(fallbackResponse);
 
   } catch (error: any) {
-    console.error('API Chat Error:', error);
+    console.error('Chat API Fatal Error:', error);
     return NextResponse.json(
-      { error: error.message || 'Something went wrong processing your request' },
+      { error: 'An unexpected error occurred while processing your request' },
       { status: 500 }
     );
   }
 }
 
 /**
- * Intelligent Fallback NLP engine for seamless testing, multi-turn reasoning,
- * and high-quality responses in Bengali, Banglish, and English.
+ * Intelligent deterministic multi-turn and multi-lingual fallback
  */
 function handleIntelligentFallback(
   prompt: string,
   resumeData: ResumeData,
   designConfig: DesignConfig,
-  history: any[]
+  history: Array<{ role: string; content: string }> = []
 ) {
   const p = prompt.toLowerCase().trim();
   const isBangla = /[\u0980-\u09FF]/.test(prompt);
-  const isBanglish = /koro|chilo|moto|dao|rakhba|bad|amar|hobe|ektu|niche|ager|korbo/i.test(prompt);
+  const isBanglish = /koro|chilo|moto|dao|rakhba|bad|amar|hobe|ektu|aro|valo|niche/i.test(prompt);
 
-  // 1. Photo Removal / Addition Commands
+  // 1. Photo removal or addition
   if (
     p.includes('photo remove') ||
-    p.includes('photo bad') ||
     p.includes('remove photo') ||
     p.includes('ছবি বাদ') ||
-    p.includes('ছবি রিমুভ') ||
-    p.includes('ছবি মুছে')
+    p.includes('ছবি সরাও') ||
+    (p.includes('photo') && (p.includes('bad') || p.includes('remove') || p.includes('delete')))
   ) {
-    let content = 'Done — CV থেকে ছবি রিমুভ করা হয়েছে।';
+    let content = 'Done — প্রোফাইল ছবি বাদ দেওয়া হয়েছে।';
     if (!isBangla && !isBanglish) {
-      content = 'Done — Removed the profile photo from your CV.';
+      content = 'Done — Removed photo from your CV layout for ATS compliance.';
     }
     return {
       content,
@@ -451,32 +422,24 @@ function handleIntelligentFallback(
     p.includes('1 page') ||
     p.includes('single page') ||
     p.includes('এক পেজ') ||
-    p.includes('এক পাতা')
+    p.includes('১ পেজ')
   ) {
-    const tightenedExperiences = (resumeData.experiences || []).map((exp) => ({
-      ...exp,
-      bullets: exp.bullets.map((b) => b.replace(/\s+/g, ' ').trim())
-    }));
-
-    let content = 'Done — পুরো CV ১ পেজে সুন্দরভাবে ফিট করার জন্য লেআউট ও স্পেসিং অ্যাডজাস্ট করেছি।';
+    let content = 'Done — সিভি ১ পেজে পারফেক্টলি ফিট করার জন্য স্পেসিং এবং কনটেন্ট অ্যাডজাস্ট করেছি।';
     if (isBangla) {
-      content = 'Done — আপনার সম্পূর্ণ সিভি এক পৃষ্ঠায় চমৎকারভাবে সমন্বয় করা হয়েছে।';
+      content = 'Done — আপনার সম্পূর্ণ সিভি সফলভাবে ১ পৃষ্ঠায় সীমাবদ্ধ ও সাজানো হয়েছে।';
     } else if (!isBanglish) {
-      content = 'Done — Adjusted layout and spacing to fit cleanly onto a single page.';
+      content = 'Done — Optimized typography, spacing, and layout to perfectly fit a single A4 page.';
     }
 
     return {
       content,
       diffPreview: {
         action: 'update',
-        modifiedData: {
-          experiences: tightenedExperiences
-        },
         modifiedDesign: {
           onePageMode: true,
           sectionSpacing: 'compact',
           lineSpacing: 'compact',
-          fontSize: 'sm'
+          fontSize: 'sm',
         }
       },
       suggestedActions: [
@@ -585,7 +548,7 @@ function handleIntelligentFallback(
   // 8. Strengthen Experience (e.g. "experience ta aro strong koro", "অভিজ্ঞতার বিবরণ আরও শক্তিশালী করো", "make experience stronger")
   if (
     (p.includes('experience') || p.includes('অভিজ্ঞতা')) &&
-    (p.includes('strong') || p.includes('better') || p.includes('impact') || p.includes('শক্তিশালী') || p.includes('উন্নত'))
+    (p.includes('strong') || p.includes('better') || p.includes('impact') || p.includes('শক্তিশালী') || p.includes('উন্নত') || p.includes('likho'))
   ) {
     const strongActionVerbs = ['Spearheaded', 'Architected', 'Engineered', 'Optimized', 'Scaled', 'Directed'];
     const strengthened = (resumeData.experiences || []).map((exp, expIdx) => ({
@@ -654,13 +617,13 @@ function handleIntelligentFallback(
         modifiedData: {
           personalInfo: {
             ...resumeData.personalInfo,
-            summary: polishedSummary
+            summary: polishedSummary,
           },
-          skills: polishedSkills
+          skills: polishedSkills,
         },
         modifiedDesign: {
           accentColor: '#0f172a',
-          fontFamily: 'jakarta'
+          fontFamily: 'jakarta',
         }
       },
       suggestedActions: [
@@ -671,50 +634,33 @@ function handleIntelligentFallback(
     };
   }
 
-  // 10. Vague / Removal command (e.g. "eta bad dao", "remove this")
-  if (p.includes('bad dao') || p.includes('remove this') || p.includes('বাদ দাও')) {
-    let content = 'Done — অনুরোধকৃত অংশটি বাদ দেওয়া হয়েছে।';
-    if (!isBangla && !isBanglish) {
-      content = 'Done — Removed the requested section.';
-    }
+  // 10. Default General Conversational Polish
+  const defaultSummary = resumeData.personalInfo.summary
+    ? `${resumeData.personalInfo.summary} Committed to driving measurable impact and professional excellence.`
+    : `Dedicated ${resumeData.personalInfo.jobTitle || 'professional'} focused on delivering high performance and operational results.`;
 
-    const modifiedAwards = (resumeData.awards || []).slice(0, Math.max(0, (resumeData.awards || []).length - 1));
-
-    return {
-      content,
-      diffPreview: {
-        action: 'update',
-        modifiedData: {
-          awards: modifiedAwards
-        }
-      },
-      suggestedActions: [
-        'Ager version tai valo chilo',
-        'CV ta one page koro',
-        'Make my CV professional'
-      ]
-    };
-  }
-
-  // Default natural conversational response
-  let defaultReply = 'Done — আপনার নির্দেশ অনুযায়ী CV আপডেট করা হয়েছে। আর কী পরিবর্তন করতে চান?';
+  let content = 'Done — আপনার নির্দেশনা অনুযায়ী সিভি আপডেট করেছি।';
   if (isBangla) {
-    defaultReply = 'Done — আপনার অনুরোধ অনুযায়ী সিভি সফলভাবে আপডেট করা হয়েছে।';
+    content = 'Done — আপনার চাওয়া অনুযায়ী সিভি সাজিয়ে দিয়েছি।';
   } else if (!isBanglish) {
-    defaultReply = 'Done — Updated your CV according to your instructions.';
+    content = 'Done — Updated your CV according to your instructions.';
   }
 
   return {
-    content: defaultReply,
+    content,
     diffPreview: {
       action: 'update',
-      modifiedData: {},
-      modifiedDesign: {}
+      modifiedData: {
+        personalInfo: {
+          ...resumeData.personalInfo,
+          summary: defaultSummary
+        }
+      }
     },
     suggestedActions: [
+      'Experience ta aro strong koro',
       'CV ta one page koro',
-      'Make my CV professional',
-      'Change CV design'
+      'Download PDF'
     ]
   };
 }
