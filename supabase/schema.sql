@@ -1,6 +1,6 @@
 -- =========================================================
 -- Resumate AI — PostgreSQL & Supabase Production Schema
--- Phase 8: Production Security Hardening & Strict RLS
+-- Safe, Idempotent & Re-runnable Migration Script
 -- =========================================================
 
 -- Enable UUID Extension
@@ -85,7 +85,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_resume_id ON chat_messages(resume_i
 CREATE INDEX IF NOT EXISTS idx_payments_resume_id ON payments(resume_id);
 
 -- =========================================================
--- ROW LEVEL SECURITY (RLS) POLICIES
+-- ENABLE ROW LEVEL SECURITY (RLS)
 -- =========================================================
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE resumes ENABLE ROW LEVEL SECURITY;
@@ -94,7 +94,12 @@ ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 
--- Resumes: Users can only select/update/delete their own resumes
+-- =========================================================
+-- IDEMPOTENT ROW LEVEL SECURITY (RLS) POLICIES
+-- =========================================================
+
+-- 1. Resumes Policy
+DROP POLICY IF EXISTS "Users can access their own resumes" ON resumes;
 CREATE POLICY "Users can access their own resumes"
 ON resumes FOR ALL
 USING (
@@ -102,7 +107,8 @@ USING (
   OR (guest_session_id IS NOT NULL AND guest_session_id = current_setting('request.headers', true)::json->>'x-guest-session-id')
 );
 
--- Resume Versions: Follow parent resume ownership
+-- 2. Resume Versions Policy
+DROP POLICY IF EXISTS "Users can access versions of their resumes" ON resume_versions;
 CREATE POLICY "Users can access versions of their resumes"
 ON resume_versions FOR ALL
 USING (
@@ -116,7 +122,8 @@ USING (
   )
 );
 
--- Chat Messages: Follow parent resume ownership
+-- 3. Chat Messages Policy
+DROP POLICY IF EXISTS "Users can access chat messages of their resumes" ON chat_messages;
 CREATE POLICY "Users can access chat messages of their resumes"
 ON chat_messages FOR ALL
 USING (
@@ -130,7 +137,8 @@ USING (
   )
 );
 
--- Payments: Read-only for resume owners, modifications restricted to service-role
+-- 4. Payments Policy
+DROP POLICY IF EXISTS "Users can view payments for their resumes" ON payments;
 CREATE POLICY "Users can view payments for their resumes"
 ON payments FOR SELECT
 USING (
