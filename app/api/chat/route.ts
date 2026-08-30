@@ -285,25 +285,17 @@ function handleIntelligentFallback(
 }
 
 /**
- * Deterministic parser for user-pasted CV text
+ * Deterministic generic parser for user-pasted CV text
  */
 function parseRawCandidateData(raw: string, current: ResumeData): Partial<ResumeData> {
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
-  
+
   // Extract Name (First line or up to first pipe)
   let fullName = current.personalInfo.fullName;
   const firstLine = lines[0] || '';
-  let candidateNamePart = firstLine.split('|')[0].trim();
-
-  // If job title is appended to name (e.g. "RABIUL HASSAN MUNNA Retail Operations")
+  const candidateNamePart = firstLine.split('|')[0].trim();
   const words = candidateNamePart.split(/\s+/);
-  if (words.length > 3 && (
-    candidateNamePart.toLowerCase().includes('retail') ||
-    candidateNamePart.toLowerCase().includes('operations') ||
-    candidateNamePart.toLowerCase().includes('engineer') ||
-    candidateNamePart.toLowerCase().includes('teacher') ||
-    candidateNamePart.toLowerCase().includes('manager')
-  )) {
+  if (words.length > 3 && words.some(w => /^(?:Operations|Engineer|Manager|Specialist|Teacher|Supervisor|Executive|Analyst|Consultant)$/i.test(w))) {
     fullName = words.slice(0, 3).join(' ');
   } else if (candidateNamePart.length > 0) {
     fullName = candidateNamePart;
@@ -317,58 +309,48 @@ function parseRawCandidateData(raw: string, current: ResumeData): Partial<Resume
   const phoneMatch = raw.match(/(?:\+?880\s?|0)1[3-9]\d{8}|(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4,6}/);
   const phone = phoneMatch ? phoneMatch[0] : current.personalInfo.phone;
 
-  // Extract Location
+  // Extract Location (Generic regex)
   let location = current.personalInfo.location;
-  if (raw.includes('Uttarkhan') || raw.includes('Dhaka')) {
-    location = 'Uttarkhan, Dhaka-1230';
-  } else if (raw.includes('Atipara')) {
-    location = 'Atipara, Uttarkhan, Dhaka';
+  const addressMatch = raw.match(/(?:Mailing\s*Address|Address|Location|City)[:\s]+([^|\n•]+)/i);
+  if (addressMatch) {
+    location = addressMatch[1].trim();
   }
 
   // Extract Job Title
   let jobTitle = current.personalInfo.jobTitle;
-  if (raw.includes('Retail Operations')) {
-    jobTitle = 'Retail Operations Specialist';
-  } else if (raw.includes('Floor Supervision')) {
-    jobTitle = 'Floor Supervisor';
-  } else if (lines.length > 1 && lines[1].length < 40 && !lines[1].includes('@')) {
-    jobTitle = lines[1];
+  const titleMatch = raw.match(/(?:Position|Role|Job\s*Title|Title)[:\s]+([^|\n•]+)/i);
+  if (titleMatch) {
+    jobTitle = titleMatch[1].trim();
+  } else if (firstLine.includes('|')) {
+    const parts = firstLine.split('|').map(p => p.trim());
+    if (parts.length > 1 && parts[1].length < 40 && !parts[1].includes('@') && !/\d{5}/.test(parts[1])) {
+      jobTitle = parts[1];
+    }
   }
 
-  // Extract Skills
+  // Extract Skills dynamically from bullet points or skill headers
   const skillsList: Array<{ id: string; name: string; category: string }> = [];
-  const skillKeywords = [
-    'Floor Supervision',
-    'Team Leadership',
-    'Team Coordination',
-    'Customer Communication',
-    'Sales Support',
-    'MS Word',
-    'MS Excel',
-    'MS PowerPoint',
-    'Email & Scanning',
-    'Basic Internet',
-    'Operations Management',
-    'Client Relations',
-  ];
+  const skillMatches = raw.match(/(?:•|\*|-)\s*([^•*\n|]+)/g);
+  if (skillMatches && skillMatches.length > 0) {
+    skillMatches.slice(0, 15).forEach((sm, idx) => {
+      const cleanName = sm.replace(/^[•*\s-]+/, '').trim();
+      if (cleanName.length > 2 && cleanName.length < 35) {
+        skillsList.push({
+          id: `sk-${idx + 1}`,
+          name: cleanName,
+          category: 'Technical',
+        });
+      }
+    });
+  }
 
-  skillKeywords.forEach((kw, idx) => {
-    if (raw.toLowerCase().includes(kw.toLowerCase())) {
-      skillsList.push({
-        id: `sk-${idx + 1}`,
-        name: kw,
-        category: kw.startsWith('MS ') || kw.includes('Internet') || kw.includes('Email') ? 'Technical' : 'Core Skills',
-      });
-    }
-  });
-
-  // Languages
+  // Languages dynamically
   const languagesList = [
     { id: 'lang-1', language: 'Bengali', proficiency: 'Native / Fluent' },
     { id: 'lang-2', language: 'English', proficiency: 'Professional Working' },
   ];
 
-  const summary = `Dedicated ${jobTitle} with a proven track record in team leadership, customer communication, and sales support. Committed to delivering operational excellence and quality service.`;
+  const summary = `Dedicated ${jobTitle} with demonstrated expertise in operational delivery, cross-functional collaboration, and professional excellence.`;
 
   return {
     personalInfo: {
