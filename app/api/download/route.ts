@@ -38,10 +38,18 @@ export async function POST(req: NextRequest) {
     const dataToRender = resumeData || verifiedResume.data;
     const configToRender = config || verifiedResume.design;
 
-    // 3. Render PDF using Playwright
+    // 3. Render PDF using Playwright with Docker/Linux container safety flags
+    const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
     const browser = await chromium.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      executablePath,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--no-zygote',
+      ],
     });
 
     const context = await browser.newContext();
