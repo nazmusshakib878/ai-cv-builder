@@ -29,8 +29,9 @@ export async function POST(req: Request) {
     // Handle Direct JSON payload (e.g. from Tell AI about me / raw text paste)
     if (contentType.includes('application/json')) {
       const body = await req.json().catch(() => null);
-      if (body && typeof body.text === 'string' && body.text.trim().length > 0) {
-        extractedText = body.text.trim();
+      const textContent = body?.text || body?.rawText;
+      if (typeof textContent === 'string' && textContent.trim().length > 0) {
+        extractedText = textContent.trim();
       } else {
         return NextResponse.json({ error: 'No text provided in request' }, { status: 400 });
       }
