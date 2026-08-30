@@ -85,12 +85,12 @@ export const MultinationalCorpTemplate: React.FC<TemplateProps> = ({ data, desig
         </div>
 
         {/* =========================================================
-            MAIN CONTENT (with Smart Vertical Balancing)
+            MAIN CONTENT (Vertically Balanced Across A4)
            ========================================================= */}
-        <div className={`${metrics.contentPadding} flex-1 flex flex-col ${metrics.distributeFlex} ${metrics.sectionSpacing}`}>
+        <div className={`${metrics.contentPadding} flex-1 flex flex-col justify-between`}>
           {/* EXECUTIVE PROFILE */}
           {personalInfo.summary && (
-            <div>
+            <div className="mb-2">
               <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 Executive Profile
               </h3>
@@ -102,7 +102,7 @@ export const MultinationalCorpTemplate: React.FC<TemplateProps> = ({ data, desig
 
           {/* CORE VALUE & LEADERSHIP COMPETENCIES */}
           {skills.length > 0 && (
-            <div>
+            <div className="mb-2">
               <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 Core Competencies &amp; Expertise
               </h3>
@@ -119,7 +119,7 @@ export const MultinationalCorpTemplate: React.FC<TemplateProps> = ({ data, desig
 
           {/* PROFESSIONAL CAREER HISTORY */}
           {experiences.length > 0 && (
-            <div>
+            <div className="mb-2">
               <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-2 ${metrics.headingTextSize}`}>
                 Professional Career History
               </h3>
@@ -152,7 +152,7 @@ export const MultinationalCorpTemplate: React.FC<TemplateProps> = ({ data, desig
 
           {/* EDUCATION & EXECUTIVE QUALIFICATIONS */}
           {education.length > 0 && (
-            <div>
+            <div className="mb-2">
               <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 Education &amp; Academic Credentials
               </h3>
@@ -179,7 +179,7 @@ export const MultinationalCorpTemplate: React.FC<TemplateProps> = ({ data, desig
 
           {/* CERTIFICATIONS */}
           {certifications.length > 0 && (
-            <div>
+            <div className="mb-2">
               <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 Professional Certifications
               </h3>
@@ -197,7 +197,7 @@ export const MultinationalCorpTemplate: React.FC<TemplateProps> = ({ data, desig
 
           {/* LANGUAGES */}
           {languages.length > 0 && (
-            <div>
+            <div className="mb-2">
               <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 Languages
               </h3>
@@ -212,8 +212,8 @@ export const MultinationalCorpTemplate: React.FC<TemplateProps> = ({ data, desig
             </div>
           )}
 
-          {/* REFERENCES */}
-          <div>
+          {/* REFERENCES - Anchored at bottom */}
+          <div className="pt-1">
             <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1 ${metrics.headingTextSize}`}>
               References
             </h3>

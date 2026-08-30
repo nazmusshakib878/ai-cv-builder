@@ -58,12 +58,12 @@ export const GlobalATSTemplate: React.FC<TemplateProps> = ({ data, design }) => 
         </div>
 
         {/* =========================================================
-            MAIN 100% SINGLE-COLUMN ATS CONTENT (Smart Vertical Balancing)
+            MAIN 100% SINGLE-COLUMN ATS CONTENT (Vertically Balanced Across A4)
            ========================================================= */}
-        <div className={`${metrics.contentPadding} pt-3 flex-1 flex flex-col ${metrics.distributeFlex} ${metrics.sectionSpacing}`}>
+        <div className={`${metrics.contentPadding} pt-3 flex-1 flex flex-col justify-between`}>
           {/* PROFESSIONAL SUMMARY */}
           {personalInfo.summary && (
-            <div>
+            <div className="mb-2">
               <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 PROFESSIONAL SUMMARY
               </h2>
@@ -75,7 +75,7 @@ export const GlobalATSTemplate: React.FC<TemplateProps> = ({ data, design }) => 
 
           {/* CORE SKILLS */}
           {skills.length > 0 && (
-            <div>
+            <div className="mb-2">
               <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 CORE SKILLS
               </h2>
@@ -87,7 +87,7 @@ export const GlobalATSTemplate: React.FC<TemplateProps> = ({ data, design }) => 
 
           {/* PROFESSIONAL EXPERIENCE */}
           {experiences.length > 0 && (
-            <div>
+            <div className="mb-2">
               <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-2 ${metrics.headingTextSize}`}>
                 PROFESSIONAL EXPERIENCE
               </h2>
@@ -117,7 +117,7 @@ export const GlobalATSTemplate: React.FC<TemplateProps> = ({ data, design }) => 
 
           {/* EDUCATION */}
           {education.length > 0 && (
-            <div>
+            <div className="mb-2">
               <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 EDUCATION
               </h2>
@@ -139,7 +139,7 @@ export const GlobalATSTemplate: React.FC<TemplateProps> = ({ data, design }) => 
 
           {/* CERTIFICATIONS */}
           {certifications.length > 0 && (
-            <div>
+            <div className="mb-2">
               <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 CERTIFICATIONS &amp; LICENSES
               </h2>
@@ -157,7 +157,7 @@ export const GlobalATSTemplate: React.FC<TemplateProps> = ({ data, design }) => 
 
           {/* LANGUAGES */}
           {languages.length > 0 && (
-            <div>
+            <div className="mb-2">
               <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 LANGUAGES
               </h2>
@@ -167,8 +167,8 @@ export const GlobalATSTemplate: React.FC<TemplateProps> = ({ data, design }) => 
             </div>
           )}
 
-          {/* REFERENCES */}
-          <div>
+          {/* REFERENCES - Anchored at bottom */}
+          <div className="pt-1">
             <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1 ${metrics.headingTextSize}`}>
               REFERENCES
             </h2>

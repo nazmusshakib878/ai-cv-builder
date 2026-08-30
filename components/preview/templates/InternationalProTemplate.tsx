@@ -93,12 +93,12 @@ export const InternationalProTemplate: React.FC<TemplateProps> = ({ data, design
         </div>
 
         {/* =========================================================
-            MAIN CONTENT (Single-Column ATS Layout with Smart Spacing)
+            MAIN CONTENT: Vertically Balanced Across A4 Canvas
            ========================================================= */}
-        <div className={`${metrics.contentPadding} flex-1 flex flex-col ${metrics.distributeFlex} ${metrics.sectionSpacing}`}>
+        <div className={`${metrics.contentPadding} flex-1 flex flex-col justify-between`}>
           {/* PROFESSIONAL SUMMARY */}
           {personalInfo.summary && (
-            <div>
+            <div className="mb-2">
               <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 Professional Summary
               </h3>
@@ -108,17 +108,17 @@ export const InternationalProTemplate: React.FC<TemplateProps> = ({ data, design
             </div>
           )}
 
-          {/* KEY COMPETENCIES (3-Column Grid) */}
+          {/* KEY COMPETENCIES (3 or 4 Column Grid) */}
           {skills.length > 0 && (
-            <div>
+            <div className="mb-2">
               <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 Key Competencies
               </h3>
-              <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[10.5px] text-slate-700">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-x-4 gap-y-1 text-[10.5px] text-slate-700">
                 {skills.map((s) => (
                   <div key={s.id} className="flex items-center gap-1.5 truncate">
                     <span className="text-teal-700 font-bold">•</span>
-                    <span>{s.name}</span>
+                    <span className="truncate">{s.name}</span>
                   </div>
                 ))}
               </div>
@@ -127,7 +127,7 @@ export const InternationalProTemplate: React.FC<TemplateProps> = ({ data, design
 
           {/* PROFESSIONAL EXPERIENCE */}
           {experiences.length > 0 && (
-            <div>
+            <div className="mb-2">
               <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-2 ${metrics.headingTextSize}`}>
                 Professional Experience
               </h3>
@@ -160,7 +160,7 @@ export const InternationalProTemplate: React.FC<TemplateProps> = ({ data, design
 
           {/* EDUCATION & QUALIFICATIONS */}
           {education.length > 0 && (
-            <div>
+            <div className="mb-2">
               <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 Education &amp; Qualifications
               </h3>
@@ -187,7 +187,7 @@ export const InternationalProTemplate: React.FC<TemplateProps> = ({ data, design
 
           {/* CERTIFICATIONS & LICENSES */}
           {certifications.length > 0 && (
-            <div>
+            <div className="mb-2">
               <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 Certifications &amp; Professional Credentials
               </h3>
@@ -205,7 +205,7 @@ export const InternationalProTemplate: React.FC<TemplateProps> = ({ data, design
 
           {/* LANGUAGES */}
           {languages.length > 0 && (
-            <div>
+            <div className="mb-2">
               <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 Languages
               </h3>
@@ -220,8 +220,8 @@ export const InternationalProTemplate: React.FC<TemplateProps> = ({ data, design
             </div>
           )}
 
-          {/* REFERENCES */}
-          <div>
+          {/* REFERENCES - Anchored at the bottom */}
+          <div className="pt-1">
             <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1 ${metrics.headingTextSize}`}>
               References
             </h3>

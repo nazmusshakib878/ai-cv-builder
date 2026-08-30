@@ -87,7 +87,7 @@ export const NationalProTemplate: React.FC<TemplateProps> = ({ data, design }) =
            ========================================================= */}
         <div className="flex-1 flex min-h-0">
           {/* LEFT SIDEBAR (~32%) */}
-          <div className={`w-[32%] bg-[#f8fafc] border-r border-slate-200/80 p-5 sm:p-6 flex flex-col ${metrics.distributeFlex} text-slate-700 shrink-0`}>
+          <div className="w-[32%] bg-[#f8fafc] border-r border-slate-200/80 p-5 sm:p-6 flex flex-col justify-between text-slate-700 shrink-0">
             <div className={metrics.sidebarSpacing}>
               {/* CONTACT */}
               <div className="space-y-2">
@@ -122,20 +122,26 @@ export const NationalProTemplate: React.FC<TemplateProps> = ({ data, design }) =
                 </div>
               </div>
 
-              {/* CORE SKILLS */}
+              {/* CORE SKILLS - Balanced Grid Layout */}
               {skills.length > 0 && (
                 <div className="space-y-2">
                   <h2 className="text-[11.5px] font-black uppercase tracking-wider text-[#0f172a] border-b border-slate-300 pb-1">
                     Core Skills
                   </h2>
-                  <ul className="space-y-1.5 text-[10.5px] text-slate-700">
+                  <div
+                    className={
+                      skills.length > 8
+                        ? 'grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-slate-700'
+                        : 'space-y-1.5 text-[10.5px] text-slate-700'
+                    }
+                  >
                     {skills.map((s) => (
-                      <li key={s.id} className="flex items-start gap-1.5">
-                        <span className="text-slate-400 font-bold">•</span>
-                        <span>{s.name}</span>
-                      </li>
+                      <div key={s.id} className="flex items-start gap-1 truncate" title={s.name}>
+                        <span className="text-blue-600 font-bold text-[9px]">•</span>
+                        <span className="truncate">{s.name}</span>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
               )}
 
@@ -158,10 +164,10 @@ export const NationalProTemplate: React.FC<TemplateProps> = ({ data, design }) =
             </div>
           </div>
 
-          {/* RIGHT MAIN CONTENT (~68%) */}
-          <div className={`flex-1 ${metrics.contentPadding} flex flex-col ${metrics.distributeFlex} text-slate-800`}>
+          {/* RIGHT MAIN CONTENT (~68%) - Vertically Balanced Across A4 Canvas */}
+          <div className={`flex-1 ${metrics.contentPadding} flex flex-col justify-between text-slate-800`}>
             {/* Header: Full Name & Job Title */}
-            <div className="mb-2">
+            <div className="border-b border-slate-200 pb-3 mb-2 shrink-0">
               <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-[#0f172a]">
                 {personalInfo.fullName || 'YOUR FULL NAME'}
               </h1>
@@ -170,10 +176,11 @@ export const NationalProTemplate: React.FC<TemplateProps> = ({ data, design }) =
               </p>
             </div>
 
-            <div className={`flex-1 flex flex-col ${metrics.distributeFlex} ${metrics.sectionSpacing}`}>
+            {/* SECTIONS CONTAINER: Stretched naturally from top to bottom */}
+            <div className="flex-1 flex flex-col justify-between py-1">
               {/* CAREER SUMMARY */}
               {personalInfo.summary && (
-                <div>
+                <div className="mb-2">
                   <h2 className={`font-black uppercase tracking-wider text-[#0f172a] border-b-2 border-slate-800 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                     Career Summary
                   </h2>
@@ -185,7 +192,7 @@ export const NationalProTemplate: React.FC<TemplateProps> = ({ data, design }) =
 
               {/* PROFESSIONAL EXPERIENCE */}
               {experiences.length > 0 && (
-                <div>
+                <div className="mb-2">
                   <h2 className={`font-black uppercase tracking-wider text-[#0f172a] border-b-2 border-slate-800 pb-0.5 mb-2 ${metrics.headingTextSize}`}>
                     Professional Experience
                   </h2>
@@ -218,7 +225,7 @@ export const NationalProTemplate: React.FC<TemplateProps> = ({ data, design }) =
 
               {/* EDUCATION */}
               {education.length > 0 && (
-                <div>
+                <div className="mb-2">
                   <h2 className={`font-black uppercase tracking-wider text-[#0f172a] border-b-2 border-slate-800 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                     Education
                   </h2>
@@ -245,7 +252,7 @@ export const NationalProTemplate: React.FC<TemplateProps> = ({ data, design }) =
 
               {/* CERTIFICATIONS & TRAINING */}
               {certifications.length > 0 && (
-                <div>
+                <div className="mb-2">
                   <h2 className={`font-black uppercase tracking-wider text-[#0f172a] border-b-2 border-slate-800 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                     Certifications &amp; Training
                   </h2>
@@ -263,7 +270,7 @@ export const NationalProTemplate: React.FC<TemplateProps> = ({ data, design }) =
 
               {/* SELECTED ACHIEVEMENTS */}
               {awards.length > 0 && (
-                <div>
+                <div className="mb-2">
                   <h2 className={`font-black uppercase tracking-wider text-[#0f172a] border-b-2 border-slate-800 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                     Selected Achievements
                   </h2>
@@ -278,8 +285,8 @@ export const NationalProTemplate: React.FC<TemplateProps> = ({ data, design }) =
                 </div>
               )}
 
-              {/* REFERENCES */}
-              <div>
+              {/* REFERENCES - Anchored at the bottom */}
+              <div className="pt-1">
                 <h2 className={`font-black uppercase tracking-wider text-[#0f172a] border-b-2 border-slate-800 pb-0.5 mb-1 ${metrics.headingTextSize}`}>
                   References
                 </h2>
