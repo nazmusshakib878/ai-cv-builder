@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { ResumeData, DesignConfig } from '@/types/resume';
+import { computeSmartVerticalSpacing } from '@/utils/verticalSpacing';
 
 interface TemplateProps {
   data: ResumeData;
@@ -9,8 +10,17 @@ interface TemplateProps {
 }
 
 export const MultinationalCorpTemplate: React.FC<TemplateProps> = ({ data, design }) => {
-  const { personalInfo, experiences = [], education = [], skills = [], certifications = [], languages = [], awards = [] } = data;
-  const isOnePage = design.onePageMode;
+  const {
+    personalInfo = { fullName: '', jobTitle: '', email: '', phone: '', location: '', summary: '' },
+    experiences = [],
+    education = [],
+    skills = [],
+    certifications = [],
+    languages = [],
+    awards = [],
+  } = data;
+
+  const metrics = computeSmartVerticalSpacing(data, design);
 
   const fontClass =
     design.fontFamily === 'merriweather'
@@ -23,19 +33,6 @@ export const MultinationalCorpTemplate: React.FC<TemplateProps> = ({ data, desig
       ? 'font-jakarta'
       : 'font-sans';
 
-  const baseTextSize =
-    design.fontSize === 'sm' || isOnePage ? 'text-[10px] leading-[1.38]' : design.fontSize === 'lg' ? 'text-[11.5px] leading-[1.48]' : 'text-[10.5px] leading-[1.42]';
-
-  const headingTextSize =
-    design.fontSize === 'sm' || isOnePage ? 'text-[11px]' : design.fontSize === 'lg' ? 'text-[12.5px]' : 'text-[11.5px]';
-
-  const sectionSpacing =
-    design.sectionSpacing === 'compact' || isOnePage ? 'space-y-2' : design.sectionSpacing === 'relaxed' ? 'space-y-3.5' : 'space-y-2.5';
-
-  // Calculate realistic metrics from factual experience data
-  const totalYears = Math.max(1, experiences.length * 2);
-  const showMetricStrip = experiences.length > 0 && !isOnePage;
-
   return (
     <div
       className={`bg-white text-slate-800 ${fontClass} flex flex-col justify-between`}
@@ -43,9 +40,9 @@ export const MultinationalCorpTemplate: React.FC<TemplateProps> = ({ data, desig
     >
       <div className="flex-1 flex flex-col">
         {/* =========================================================
-            TOP BANNER (Page 8 Reference)
+            TOP BANNER
            ========================================================= */}
-        <div className="bg-[#0f172a] text-white px-8 py-5 flex items-center justify-between shrink-0">
+        <div className={`bg-[#0f172a] text-white px-8 ${metrics.headerPadding} flex items-center justify-between shrink-0`}>
           <div>
             <h1 className="text-xl sm:text-2xl font-black tracking-wider uppercase text-white">
               Multinational Company CV
@@ -70,14 +67,14 @@ export const MultinationalCorpTemplate: React.FC<TemplateProps> = ({ data, desig
         {/* =========================================================
             CANDIDATE HEADER
            ========================================================= */}
-        <div className="px-8 pt-6 pb-4 border-b border-slate-200 shrink-0">
+        <div className="px-8 pt-5 pb-3 border-b border-slate-200 shrink-0">
           <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-slate-900">
             {personalInfo.fullName || 'YOUR FULL NAME'}
           </h2>
           <p className="text-sm sm:text-base font-bold text-[#b45309] mt-0.5">
             {personalInfo.jobTitle || 'Corporate Function / Target Role'}
           </p>
-          <div className="text-[10.5px] text-slate-600 mt-2 flex flex-wrap items-center gap-2">
+          <div className="text-[10.5px] text-slate-600 mt-1.5 flex flex-wrap items-center gap-2">
             {personalInfo.email && <span>{personalInfo.email}</span>}
             {personalInfo.phone && <span>| {personalInfo.phone}</span>}
             {personalInfo.location && <span>| {personalInfo.location}</span>}
@@ -88,77 +85,60 @@ export const MultinationalCorpTemplate: React.FC<TemplateProps> = ({ data, desig
         </div>
 
         {/* =========================================================
-            MAIN CONTENT
+            MAIN CONTENT (with Smart Vertical Balancing)
            ========================================================= */}
-        <div className={`p-8 ${sectionSpacing} flex-1`}>
+        <div className={`${metrics.contentPadding} flex-1 flex flex-col ${metrics.distributeFlex} ${metrics.sectionSpacing}`}>
           {/* EXECUTIVE PROFILE */}
           {personalInfo.summary && (
             <div>
-              <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1.5 ${headingTextSize}`}>
+              <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 Executive Profile
               </h3>
-              <p className={`text-slate-700 leading-relaxed text-justify ${baseTextSize}`}>
+              <p className={`text-slate-700 leading-relaxed text-justify ${metrics.baseTextSize}`}>
                 {personalInfo.summary}
               </p>
             </div>
           )}
 
-          {/* OPTIONAL METRIC STRIP (4 Cards) */}
-          {showMetricStrip && (
-            <div className="grid grid-cols-4 gap-3 py-1 my-1">
-              <div className="bg-[#f8fafc] border border-slate-200 rounded-lg p-2.5 text-center">
-                <div className="text-base font-black text-slate-900">{totalYears}+</div>
-                <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 mt-0.5">
-                  Years Experience
-                </div>
-              </div>
-              <div className="bg-[#f8fafc] border border-slate-200 rounded-lg p-2.5 text-center">
-                <div className="text-base font-black text-emerald-700">20%+</div>
-                <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 mt-0.5">
-                  Process Improvement
-                </div>
-              </div>
-              <div className="bg-[#f8fafc] border border-slate-200 rounded-lg p-2.5 text-center">
-                <div className="text-base font-black text-blue-700">10+</div>
-                <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 mt-0.5">
-                  Team / Stakeholders
-                </div>
-              </div>
-              <div className="bg-[#f8fafc] border border-slate-200 rounded-lg p-2.5 text-center">
-                <div className="text-base font-black text-[#b45309]">100%</div>
-                <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 mt-0.5">
-                  Compliance Focus
-                </div>
+          {/* CORE VALUE & LEADERSHIP COMPETENCIES */}
+          {skills.length > 0 && (
+            <div>
+              <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
+                Core Competencies &amp; Expertise
+              </h3>
+              <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[10.5px] text-slate-700">
+                {skills.map((s) => (
+                  <div key={s.id} className="flex items-center gap-1.5">
+                    <span className="text-[#b45309] font-bold">▪</span>
+                    <span>{s.name}</span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* PROFESSIONAL EXPERIENCE */}
+          {/* PROFESSIONAL CAREER HISTORY */}
           {experiences.length > 0 && (
             <div>
-              <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-2 ${headingTextSize}`}>
-                Professional Experience
+              <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-2 ${metrics.headingTextSize}`}>
+                Professional Career History
               </h3>
-              <div className="space-y-2">
+              <div className={metrics.itemSpacing}>
                 {experiences.map((exp) => (
-                  <div key={exp.id} className="space-y-0.5">
+                  <div key={exp.id} className="space-y-1">
                     <div className="flex items-baseline justify-between">
-                      <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">
-                        {exp.role} — {exp.company}
-                      </span>
+                      <span className="font-bold text-slate-900 text-[11.5px]">{exp.role}</span>
                       <span className="text-[10px] font-semibold text-slate-600">
                         {exp.startDate} – {exp.current ? 'Present' : exp.endDate}
                       </span>
                     </div>
-                    {exp.location && (
-                      <div className="text-[10px] italic text-slate-600 font-medium">
-                        {exp.location} | Industry Operations
-                      </div>
-                    )}
+                    <div className="text-[10.5px] text-[#b45309] font-semibold">
+                      {exp.company} | {exp.location || 'Dhaka, Bangladesh'}
+                    </div>
                     {exp.bullets && exp.bullets.length > 0 && (
-                      <ul className="space-y-0.5 pl-3 mt-0.5">
-                        {exp.bullets.map((b, i) => (
-                          <li key={i} className={`list-disc text-slate-700 ${baseTextSize}`}>
+                      <ul className={`pl-4 space-y-0.5 text-slate-700 ${metrics.baseTextSize}`}>
+                        {exp.bullets.map((b, idx) => (
+                          <li key={idx} className="list-disc">
                             {b}
                           </li>
                         ))}
@@ -170,90 +150,83 @@ export const MultinationalCorpTemplate: React.FC<TemplateProps> = ({ data, desig
             </div>
           )}
 
-          {/* 2-COLUMN SPLIT: CORE CAPABILITIES + EDUCATION & CREDENTIALS */}
-          <div className="grid grid-cols-2 gap-6 pt-1">
-            {/* LEFT: CORE CAPABILITIES */}
-            {skills.length > 0 && (
-              <div>
-                <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1.5 ${headingTextSize}`}>
-                  Core Capabilities
-                </h3>
-                <ul className="space-y-1 pl-3 text-slate-700">
-                  {skills.map((s) => (
-                    <li key={s.id} className={`list-disc font-medium ${baseTextSize}`}>
-                      {s.name}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* RIGHT: EDUCATION & CREDENTIALS */}
-            <div className="space-y-2">
-              {education.length > 0 && (
-                <div>
-                  <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1.5 ${headingTextSize}`}>
-                    Education &amp; Credentials
-                  </h3>
-                  <div className="space-y-1">
-                    {education.map((edu) => (
-                      <div key={edu.id} className="text-[10.5px]">
-                        <div className="font-bold text-slate-900">{edu.degree} {edu.field ? `in ${edu.field}` : ''}</div>
-                        <div className="text-slate-600">
-                          {edu.institution} | {edu.endDate || edu.startDate}
-                          {edu.gpa && <span className="font-semibold text-slate-800"> • GPA: {edu.gpa}</span>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {certifications.length > 0 && (
-                <div>
-                  <div className="text-[10.5px] font-bold text-slate-900 mt-1">Relevant Certifications</div>
-                  <div className="text-[10px] text-slate-600">
-                    {certifications.map((c) => c.name || c.title).join(' • ')}
-                  </div>
-                </div>
-              )}
-
-              {languages.length > 0 && (
-                <div>
-                  <div className="text-[10.5px] font-bold text-slate-900 mt-1">Languages</div>
-                  <div className="text-[10px] text-slate-600">
-                    {languages.map((l) => `${l.language} (${l.proficiency})`).join(' • ')}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* SELECTED BUSINESS ACHIEVEMENTS */}
-          {awards.length > 0 && (
-            <div className="pt-1">
-              <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1 ${headingTextSize}`}>
-                Selected Business Achievements
+          {/* EDUCATION & EXECUTIVE QUALIFICATIONS */}
+          {education.length > 0 && (
+            <div>
+              <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
+                Education &amp; Academic Credentials
               </h3>
-              <ul className="space-y-0.5 pl-3">
-                {awards.map((a) => (
-                  <li key={a.id} className={`list-disc text-slate-700 ${baseTextSize}`}>
-                    <span className="font-semibold text-slate-900">{a.title}</span>
-                    {a.issuer && ` — ${a.issuer}`}
-                  </li>
+              <div className={metrics.itemSpacing}>
+                {education.map((edu) => (
+                  <div key={edu.id} className="flex justify-between items-baseline text-[11px]">
+                    <div>
+                      <div className="font-bold text-slate-900">
+                        {edu.degree} {edu.field && `in ${edu.field}`}
+                      </div>
+                      <div className="text-[10px] text-slate-600">
+                        {edu.institution} {edu.location && `| ${edu.location}`}
+                      </div>
+                    </div>
+                    <div className="text-[10px] font-semibold text-slate-500 text-right">
+                      {edu.endDate || edu.startDate}
+                      {edu.gpa && <div className="text-[#b45309] font-bold">CGPA: {edu.gpa}</div>}
+                    </div>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* =========================================================
-          FOOTER (Page 8 Reference)
-         ========================================================= */}
-      <div className="border-t border-slate-200/80 px-8 py-2 flex items-center justify-between text-[9px] text-slate-500 shrink-0 bg-white">
-        <span>DESIGN 03 | Multinational Company CV</span>
-        <span>Corporate • Achievement-led • Premium executive presentation</span>
+          {/* CERTIFICATIONS */}
+          {certifications.length > 0 && (
+            <div>
+              <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
+                Professional Certifications
+              </h3>
+              <div className="space-y-1 text-[10.5px] text-slate-700">
+                {certifications.map((c) => (
+                  <div key={c.id}>
+                    <span className="font-bold text-slate-900">{c.name || c.title}</span>
+                    {c.issuer && <span className="text-slate-600"> | {c.issuer}</span>}
+                    {c.date && <span className="text-slate-500"> | {c.date}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* LANGUAGES */}
+          {languages.length > 0 && (
+            <div>
+              <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
+                Languages
+              </h3>
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-[10.5px] text-slate-700">
+                {languages.map((l) => (
+                  <div key={l.id} className="flex items-center gap-1.5">
+                    <span className="font-bold text-slate-900">{l.language}:</span>
+                    <span className="text-slate-600">{l.proficiency}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* REFERENCES */}
+          <div>
+            <h3 className={`font-black uppercase tracking-wider text-[#b45309] border-b border-[#b45309]/30 pb-0.5 mb-1 ${metrics.headingTextSize}`}>
+              References
+            </h3>
+            <p className={`text-slate-600 italic ${metrics.baseTextSize}`}>Available upon request</p>
+          </div>
+        </div>
+
+        {/* =========================================================
+            BOTTOM FOOTER
+           ========================================================= */}
+        <div className="px-8 py-3 bg-[#f8fafc] border-t border-slate-200 text-center text-[10px] text-slate-500 shrink-0">
+          Multinational Corporate Structure • Standard A4 Format • Confidential
+        </div>
       </div>
     </div>
   );

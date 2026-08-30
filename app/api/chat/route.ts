@@ -113,9 +113,10 @@ CRITICAL RULES:
 5. PHOTO COMMANDS:
    - If user asks to remove photo ("photo remove koro", "ছবি বাদ দাও"), set photoUrl to undefined.
 
-6. ONE-PAGE FIT:
-   - When asked "CV ta one page koro" or "make it 1 page", set:
-     { "onePageMode": true, "sectionSpacing": "compact", "lineSpacing": "compact", "fontSize": "sm" }
+6. ONE-PAGE FIT & SMART VERTICAL BALANCING:
+   - When asked "CV ta one page koro", "faka space remove koro", "blank space komao", "page ta nicely fill koro", "spacing balance koro", or "available upon request er por faka space remove koro":
+   - Set:
+     { "onePageMode": true, "sectionSpacing": "normal", "lineSpacing": "normal", "fontSize": "md" }
 
 JSON Schema to return:
 {
@@ -170,7 +171,7 @@ function handleIntelligentFallback(
 ) {
   const p = prompt.toLowerCase().trim();
   const isBangla = /[\u0980-\u09FF]/.test(prompt);
-  const isBanglish = /koro|chilo|moto|dao|rakhba|bad|amar|hobe|ektu|aro|valo|niche/i.test(prompt);
+  const isBanglish = /koro|chilo|moto|dao|rakhba|bad|amar|hobe|ektu|aro|valo|niche|faka|jayga/i.test(prompt);
 
   // 0. Check if user pasted full raw CV / profile info (contains email, phone, or multiple keywords)
   const emailMatch = prompt.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
@@ -257,20 +258,45 @@ function handleIntelligentFallback(
     };
   }
 
-  // 3. One Page Fit
-  if (p.includes('one page') || p.includes('1 page') || p.includes('single page') || p.includes('এক পেজ') || p.includes('১ পেজ')) {
+  // 3. Spacing, Vertical Balancing & One Page Fit
+  const isSpacingRequest =
+    p.includes('faka space') ||
+    p.includes('blank space') ||
+    p.includes('spacing balance') ||
+    p.includes('space balance') ||
+    p.includes('nicely fill') ||
+    p.includes('page fill') ||
+    p.includes('nicher faka') ||
+    p.includes('gap remove') ||
+    p.includes('available upon request') ||
+    p.includes('ফাঁকা') ||
+    p.includes('গ্যাপ') ||
+    p.includes('one page') ||
+    p.includes('1 page') ||
+    p.includes('single page') ||
+    p.includes('এক পেজ') ||
+    p.includes('১ পেজ');
+
+  if (isSpacingRequest) {
+    let content = 'Done — A4 পেজে স্পেসিং ব্যালেন্স করে ফাঁকা জায়গা সুন্দরভাবে অ্যাডজাস্ট করেছি।';
+    if (isBangla) {
+      content = 'Done — সিভির ফাঁকা জায়গা অপ্টিমাইজ করে পুরো A4 পেজে সুষমভাবে সাজানো হয়েছে।';
+    } else if (!isBanglish) {
+      content = 'Done — Smart vertical balancing applied: distributed sections naturally across the A4 page.';
+    }
+
     return {
-      content: 'Done — সিভি ১ পেজে পারফেক্টলি ফিট করার জন্য স্পেসিং এবং লেআউট অ্যাডজাস্ট করেছি।',
+      content,
       diffPreview: {
         action: 'update',
         modifiedDesign: {
           onePageMode: true,
-          sectionSpacing: 'compact',
-          lineSpacing: 'compact',
-          fontSize: 'sm',
+          sectionSpacing: 'normal',
+          lineSpacing: 'normal',
+          fontSize: 'md',
         },
       },
-      suggestedActions: ['Design change koro', 'Experience ta aro strong koro', 'Export to PDF'],
+      suggestedActions: ['Experience ta aro strong koro', 'Design change koro', 'Download PDF'],
     };
   }
 

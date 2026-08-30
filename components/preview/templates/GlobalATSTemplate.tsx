@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { ResumeData, DesignConfig } from '@/types/resume';
+import { computeSmartVerticalSpacing } from '@/utils/verticalSpacing';
 
 interface TemplateProps {
   data: ResumeData;
@@ -9,8 +10,17 @@ interface TemplateProps {
 }
 
 export const GlobalATSTemplate: React.FC<TemplateProps> = ({ data, design }) => {
-  const { personalInfo, experiences = [], education = [], skills = [], certifications = [], languages = [], awards = [] } = data;
-  const isOnePage = design.onePageMode;
+  const {
+    personalInfo = { fullName: '', jobTitle: '', email: '', phone: '', location: '', summary: '' },
+    experiences = [],
+    education = [],
+    skills = [],
+    certifications = [],
+    languages = [],
+    awards = [],
+  } = data;
+
+  const metrics = computeSmartVerticalSpacing(data, design);
 
   const fontClass =
     design.fontFamily === 'merriweather'
@@ -23,15 +33,6 @@ export const GlobalATSTemplate: React.FC<TemplateProps> = ({ data, design }) => 
       ? 'font-jakarta'
       : 'font-sans';
 
-  const baseTextSize =
-    design.fontSize === 'sm' || isOnePage ? 'text-[10px] leading-[1.38]' : design.fontSize === 'lg' ? 'text-[11.5px] leading-[1.48]' : 'text-[10.5px] leading-[1.42]';
-
-  const headingTextSize =
-    design.fontSize === 'sm' || isOnePage ? 'text-[11px]' : design.fontSize === 'lg' ? 'text-[12.5px]' : 'text-[11.5px]';
-
-  const sectionSpacing =
-    design.sectionSpacing === 'compact' || isOnePage ? 'space-y-2' : design.sectionSpacing === 'relaxed' ? 'space-y-3.5' : 'space-y-2.5';
-
   return (
     <div
       className={`bg-white text-slate-900 ${fontClass} flex flex-col justify-between`}
@@ -41,7 +42,7 @@ export const GlobalATSTemplate: React.FC<TemplateProps> = ({ data, design }) => 
         {/* =========================================================
             HEADER (Page 1 Reference)
            ========================================================= */}
-        <div className="p-8 pb-3 text-center border-b border-slate-300 shrink-0">
+        <div className={`p-8 pb-3 text-center border-b border-slate-300 shrink-0`}>
           <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-wide text-slate-900">
             {personalInfo.fullName || 'ALEX MORGAN'}
           </h1>
@@ -57,16 +58,16 @@ export const GlobalATSTemplate: React.FC<TemplateProps> = ({ data, design }) => 
         </div>
 
         {/* =========================================================
-            MAIN 100% SINGLE-COLUMN ATS CONTENT
+            MAIN 100% SINGLE-COLUMN ATS CONTENT (Smart Vertical Balancing)
            ========================================================= */}
-        <div className={`p-8 pt-3 ${sectionSpacing} flex-1`}>
+        <div className={`${metrics.contentPadding} pt-3 flex-1 flex flex-col ${metrics.distributeFlex} ${metrics.sectionSpacing}`}>
           {/* PROFESSIONAL SUMMARY */}
           {personalInfo.summary && (
             <div>
-              <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1.5 ${headingTextSize}`}>
+              <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 PROFESSIONAL SUMMARY
               </h2>
-              <p className={`text-slate-800 leading-relaxed text-justify ${baseTextSize}`}>
+              <p className={`text-slate-800 leading-relaxed text-justify ${metrics.baseTextSize}`}>
                 {personalInfo.summary}
               </p>
             </div>
@@ -75,10 +76,10 @@ export const GlobalATSTemplate: React.FC<TemplateProps> = ({ data, design }) => 
           {/* CORE SKILLS */}
           {skills.length > 0 && (
             <div>
-              <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1.5 ${headingTextSize}`}>
+              <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 CORE SKILLS
               </h2>
-              <p className={`text-slate-800 font-medium ${baseTextSize}`}>
+              <p className={`text-slate-800 font-medium ${metrics.baseTextSize}`}>
                 {skills.map((s) => s.name).join(' • ')}
               </p>
             </div>
@@ -87,10 +88,10 @@ export const GlobalATSTemplate: React.FC<TemplateProps> = ({ data, design }) => 
           {/* PROFESSIONAL EXPERIENCE */}
           {experiences.length > 0 && (
             <div>
-              <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-2 ${headingTextSize}`}>
+              <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-2 ${metrics.headingTextSize}`}>
                 PROFESSIONAL EXPERIENCE
               </h2>
-              <div className="space-y-2">
+              <div className={metrics.itemSpacing}>
                 {experiences.map((exp) => (
                   <div key={exp.id} className="space-y-0.5">
                     <div className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">
@@ -100,9 +101,9 @@ export const GlobalATSTemplate: React.FC<TemplateProps> = ({ data, design }) => 
                       {exp.startDate} – {exp.current ? 'Present' : exp.endDate}
                     </div>
                     {exp.bullets && exp.bullets.length > 0 && (
-                      <ul className="space-y-0.5 pl-3 mt-0.5">
-                        {exp.bullets.map((b, i) => (
-                          <li key={i} className={`list-disc text-slate-800 ${baseTextSize}`}>
+                      <ul className={`pl-4 space-y-0.5 text-slate-800 ${metrics.baseTextSize}`}>
+                        {exp.bullets.map((b, idx) => (
+                          <li key={idx} className="list-disc">
                             {b}
                           </li>
                         ))}
@@ -117,60 +118,63 @@ export const GlobalATSTemplate: React.FC<TemplateProps> = ({ data, design }) => 
           {/* EDUCATION */}
           {education.length > 0 && (
             <div>
-              <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1.5 ${headingTextSize}`}>
+              <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 EDUCATION
               </h2>
-              <div className="space-y-1 text-[10.5px]">
+              <div className={metrics.itemSpacing}>
                 {education.map((edu) => (
-                  <div key={edu.id} className="text-slate-800">
-                    <span className="font-bold">{edu.degree} {edu.field ? `in ${edu.field}` : ''}</span>
-                    <span> | {edu.institution}</span>
-                    <span> | {edu.endDate || edu.startDate}</span>
-                    {edu.gpa && <span className="font-semibold"> | GPA: {edu.gpa}</span>}
+                  <div key={edu.id} className="text-[11px]">
+                    <div className="font-bold text-slate-900">
+                      {edu.degree} {edu.field && `in ${edu.field}`}
+                    </div>
+                    <div className="text-[10px] text-slate-700">
+                      {edu.institution}, {edu.location || 'Bangladesh'} ({edu.endDate || edu.startDate})
+                      {edu.gpa && <span className="font-bold"> — CGPA: {edu.gpa}</span>}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* CERTIFICATIONS & LANGUAGES */}
-          {(certifications.length > 0 || languages.length > 0) && (
+          {/* CERTIFICATIONS */}
+          {certifications.length > 0 && (
             <div>
-              <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1.5 ${headingTextSize}`}>
-                CERTIFICATIONS &amp; LANGUAGES
+              <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
+                CERTIFICATIONS &amp; LICENSES
               </h2>
-              <p className={`text-slate-800 ${baseTextSize}`}>
-                {[
-                  ...certifications.map((c) => c.name || c.title),
-                  ...languages.map((l) => `${l.language} - ${l.proficiency}`),
-                ].join(' | ')}
+              <div className="space-y-1 text-[10.5px] text-slate-800">
+                {certifications.map((c) => (
+                  <div key={c.id}>
+                    <span className="font-bold">{c.name || c.title}</span>
+                    {c.issuer && <span> — {c.issuer}</span>}
+                    {c.date && <span> ({c.date})</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* LANGUAGES */}
+          {languages.length > 0 && (
+            <div>
+              <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
+                LANGUAGES
+              </h2>
+              <p className={`text-slate-800 font-medium ${metrics.baseTextSize}`}>
+                {languages.map((l) => `${l.language} (${l.proficiency})`).join(' • ')}
               </p>
             </div>
           )}
 
-          {/* AWARDS & ACHIEVEMENTS */}
-          {awards.length > 0 && (
-            <div>
-              <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1 ${headingTextSize}`}>
-                HONORS &amp; ACHIEVEMENTS
-              </h2>
-              <ul className="space-y-0.5 pl-3">
-                {awards.map((a) => (
-                  <li key={a.id} className={`list-disc text-slate-800 ${baseTextSize}`}>
-                    <span className="font-semibold">{a.title}</span>
-                    {a.issuer && ` — ${a.issuer}`}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {/* REFERENCES */}
+          <div>
+            <h2 className={`font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-0.5 mb-1 ${metrics.headingTextSize}`}>
+              REFERENCES
+            </h2>
+            <p className={`text-slate-700 italic ${metrics.baseTextSize}`}>Available upon request</p>
+          </div>
         </div>
-      </div>
-
-      {/* FOOTER */}
-      <div className="border-t border-slate-200/80 px-8 py-2 flex items-center justify-between text-[9px] text-slate-500 shrink-0 bg-white">
-        <span>DESIGN 01 | Global ATS Resume</span>
-        <span>Recommended: USA • Canada • United Kingdom • Ireland • 100% ATS Compliant</span>
       </div>
     </div>
   );

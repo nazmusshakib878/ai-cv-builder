@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { ResumeData, DesignConfig } from '@/types/resume';
+import { computeSmartVerticalSpacing } from '@/utils/verticalSpacing';
 
 interface TemplateProps {
   data: ResumeData;
@@ -9,8 +10,18 @@ interface TemplateProps {
 }
 
 export const InternationalProTemplate: React.FC<TemplateProps> = ({ data, design }) => {
-  const { personalInfo, experiences = [], education = [], skills = [], projects = [], certifications = [], languages = [], awards = [] } = data;
-  const isOnePage = design.onePageMode;
+  const {
+    personalInfo = { fullName: '', jobTitle: '', email: '', phone: '', location: '', summary: '' },
+    experiences = [],
+    education = [],
+    skills = [],
+    projects = [],
+    certifications = [],
+    languages = [],
+    awards = [],
+  } = data;
+
+  const metrics = computeSmartVerticalSpacing(data, design);
 
   const fontClass =
     design.fontFamily === 'merriweather'
@@ -23,18 +34,6 @@ export const InternationalProTemplate: React.FC<TemplateProps> = ({ data, design
       ? 'font-jakarta'
       : 'font-sans';
 
-  const baseTextSize =
-    design.fontSize === 'sm' || isOnePage ? 'text-[10px] leading-[1.38]' : design.fontSize === 'lg' ? 'text-[11.5px] leading-[1.48]' : 'text-[10.5px] leading-[1.42]';
-
-  const headingTextSize =
-    design.fontSize === 'sm' || isOnePage ? 'text-[11px]' : design.fontSize === 'lg' ? 'text-[12.5px]' : 'text-[11.5px]';
-
-  const sectionSpacing =
-    design.sectionSpacing === 'compact' || isOnePage ? 'space-y-2' : design.sectionSpacing === 'relaxed' ? 'space-y-3.5' : 'space-y-2.5';
-
-  const itemSpacing =
-    design.lineSpacing === 'compact' || isOnePage ? 'space-y-1' : design.lineSpacing === 'relaxed' ? 'space-y-2' : 'space-y-1.5';
-
   return (
     <div
       className={`bg-white text-slate-800 ${fontClass} flex flex-col justify-between`}
@@ -42,9 +41,9 @@ export const InternationalProTemplate: React.FC<TemplateProps> = ({ data, design
     >
       <div className="flex-1 flex flex-col">
         {/* =========================================================
-            TOP HEADER BANNER (Page 7 Reference)
+            TOP HEADER BANNER
            ========================================================= */}
-        <div className="bg-white px-8 pt-6 pb-2 border-b border-slate-200 shrink-0">
+        <div className={`bg-white px-8 ${metrics.headerPadding} border-b border-slate-200 shrink-0`}>
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl sm:text-2xl font-black tracking-wider uppercase text-slate-900">
@@ -94,16 +93,16 @@ export const InternationalProTemplate: React.FC<TemplateProps> = ({ data, design
         </div>
 
         {/* =========================================================
-            MAIN CONTENT (Single-Column ATS Layout)
+            MAIN CONTENT (Single-Column ATS Layout with Smart Spacing)
            ========================================================= */}
-        <div className={`p-8 ${sectionSpacing} flex-1`}>
+        <div className={`${metrics.contentPadding} flex-1 flex flex-col ${metrics.distributeFlex} ${metrics.sectionSpacing}`}>
           {/* PROFESSIONAL SUMMARY */}
           {personalInfo.summary && (
             <div>
-              <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1.5 ${headingTextSize}`}>
+              <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 Professional Summary
               </h3>
-              <p className={`text-slate-700 leading-relaxed text-justify ${baseTextSize}`}>
+              <p className={`text-slate-700 leading-relaxed text-justify ${metrics.baseTextSize}`}>
                 {personalInfo.summary}
               </p>
             </div>
@@ -112,14 +111,14 @@ export const InternationalProTemplate: React.FC<TemplateProps> = ({ data, design
           {/* KEY COMPETENCIES (3-Column Grid) */}
           {skills.length > 0 && (
             <div>
-              <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1.5 ${headingTextSize}`}>
+              <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
                 Key Competencies
               </h3>
               <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[10.5px] text-slate-700">
                 {skills.map((s) => (
                   <div key={s.id} className="flex items-center gap-1.5 truncate">
                     <span className="text-teal-700 font-bold">•</span>
-                    <span className="truncate font-medium">{s.name}</span>
+                    <span>{s.name}</span>
                   </div>
                 ))}
               </div>
@@ -129,25 +128,25 @@ export const InternationalProTemplate: React.FC<TemplateProps> = ({ data, design
           {/* PROFESSIONAL EXPERIENCE */}
           {experiences.length > 0 && (
             <div>
-              <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-2 ${headingTextSize}`}>
+              <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-2 ${metrics.headingTextSize}`}>
                 Professional Experience
               </h3>
-              <div className={itemSpacing}>
+              <div className={metrics.itemSpacing}>
                 {experiences.map((exp) => (
-                  <div key={exp.id} className="space-y-0.5">
+                  <div key={exp.id} className="space-y-1">
                     <div className="flex items-baseline justify-between">
-                      <span className="font-bold text-slate-900 text-[11px]">{exp.role}</span>
+                      <span className="font-bold text-slate-900 text-[11.5px]">{exp.role}</span>
                       <span className="text-[10px] font-semibold text-slate-600">
                         {exp.startDate} – {exp.current ? 'Present' : exp.endDate}
                       </span>
                     </div>
-                    <div className="text-[10px] text-slate-600 font-medium">
-                      {exp.company}{exp.location ? ` | ${exp.location}` : ''}
+                    <div className="text-[10.5px] text-teal-800 font-medium">
+                      {exp.company} | {exp.location || 'Dhaka, Bangladesh'}
                     </div>
                     {exp.bullets && exp.bullets.length > 0 && (
-                      <ul className="space-y-0.5 pl-3 mt-0.5">
-                        {exp.bullets.map((b, i) => (
-                          <li key={i} className={`list-disc text-slate-700 ${baseTextSize}`}>
+                      <ul className={`pl-4 space-y-0.5 text-slate-700 ${metrics.baseTextSize}`}>
+                        {exp.bullets.map((b, idx) => (
+                          <li key={idx} className="list-disc">
                             {b}
                           </li>
                         ))}
@@ -159,91 +158,83 @@ export const InternationalProTemplate: React.FC<TemplateProps> = ({ data, design
             </div>
           )}
 
-          {/* EDUCATION & CERTIFICATIONS */}
-          {(education.length > 0 || certifications.length > 0) && (
+          {/* EDUCATION & QUALIFICATIONS */}
+          {education.length > 0 && (
             <div>
-              <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1.5 ${headingTextSize}`}>
-                Education &amp; Certifications
+              <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
+                Education &amp; Qualifications
               </h3>
-              <div className="space-y-1">
+              <div className={metrics.itemSpacing}>
                 {education.map((edu) => (
-                  <div key={edu.id} className="flex items-baseline justify-between text-[10.5px]">
+                  <div key={edu.id} className="flex justify-between items-baseline text-[11px]">
                     <div>
-                      <span className="font-bold text-slate-900">{edu.degree} {edu.field ? `- ${edu.field}` : ''}</span>
-                      <span className="text-slate-600">, {edu.institution}</span>
-                      {edu.gpa && <span className="font-semibold text-teal-800"> (GPA: {edu.gpa})</span>}
+                      <div className="font-bold text-slate-900">
+                        {edu.degree} {edu.field && `in ${edu.field}`}
+                      </div>
+                      <div className="text-[10px] text-slate-600">
+                        {edu.institution} {edu.location && `| ${edu.location}`}
+                      </div>
                     </div>
-                    <span className="text-[10px] font-semibold text-slate-600">{edu.endDate || edu.startDate}</span>
+                    <div className="text-[10px] font-semibold text-slate-500 text-right">
+                      {edu.endDate || edu.startDate}
+                      {edu.gpa && <div className="text-teal-700 font-bold">CGPA: {edu.gpa}</div>}
+                    </div>
                   </div>
                 ))}
-
-                {certifications.length > 0 && (
-                  <div className="text-[10px] text-slate-700 pt-0.5">
-                    {certifications.map((c) => c.name || c.title).join(' • ')}
-                  </div>
-                )}
               </div>
             </div>
           )}
 
-          {/* LANGUAGES & ADDITIONAL INFORMATION */}
+          {/* CERTIFICATIONS & LICENSES */}
+          {certifications.length > 0 && (
+            <div>
+              <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
+                Certifications &amp; Professional Credentials
+              </h3>
+              <div className="space-y-1 text-[10.5px] text-slate-700">
+                {certifications.map((c) => (
+                  <div key={c.id}>
+                    <span className="font-bold text-slate-900">{c.name || c.title}</span>
+                    {c.issuer && <span className="text-slate-600"> | {c.issuer}</span>}
+                    {c.date && <span className="text-slate-500"> | {c.date}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* LANGUAGES */}
           {languages.length > 0 && (
             <div>
-              <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1 ${headingTextSize}`}>
-                Languages &amp; Additional Information
+              <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1.5 ${metrics.headingTextSize}`}>
+                Languages
               </h3>
-              <p className={`text-slate-700 ${baseTextSize}`}>
-                {languages.map((l) => `${l.language} - ${l.proficiency}`).join(' | ')}
-                <span> | Work authorization / relocation details available upon request</span>
-              </p>
-            </div>
-          )}
-
-          {/* SELECTED ACHIEVEMENTS */}
-          {awards.length > 0 && (
-            <div>
-              <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1 ${headingTextSize}`}>
-                Selected Achievements
-              </h3>
-              <ul className="space-y-0.5 pl-3">
-                {awards.map((a) => (
-                  <li key={a.id} className={`list-disc text-slate-700 ${baseTextSize}`}>
-                    <span className="font-semibold text-slate-900">{a.title}</span>
-                    {a.issuer && ` — ${a.issuer}`}
-                  </li>
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-[10.5px] text-slate-700">
+                {languages.map((l) => (
+                  <div key={l.id} className="flex items-center gap-1.5">
+                    <span className="font-bold text-slate-900">{l.language}:</span>
+                    <span className="text-slate-600">{l.proficiency}</span>
+                  </div>
                 ))}
-              </ul>
-            </div>
-          )}
-
-          {/* DIGITAL / TECHNICAL SKILLS */}
-          {skills.length > 0 && (
-            <div>
-              <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1 ${headingTextSize}`}>
-                Digital / Technical Skills
-              </h3>
-              <p className={`text-slate-700 ${baseTextSize}`}>
-                {skills.map((s) => s.name).join(' | ')}
-              </p>
+              </div>
             </div>
           )}
 
           {/* REFERENCES */}
           <div>
-            <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-0.5 ${headingTextSize}`}>
+            <h3 className={`font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-0.5 mb-1 ${metrics.headingTextSize}`}>
               References
             </h3>
-            <p className={`text-slate-600 italic ${baseTextSize}`}>Available upon request</p>
+            <p className={`text-slate-600 italic ${metrics.baseTextSize}`}>Available upon request</p>
           </div>
         </div>
-      </div>
 
-      {/* =========================================================
-          FOOTER (Page 7 Reference)
-         ========================================================= */}
-      <div className="border-t border-slate-200/80 px-8 py-2 flex items-center justify-between text-[9px] text-slate-500 shrink-0 bg-white">
-        <span>DESIGN 02 | International Professional CV</span>
-        <span>Modern • No photo • Easy to tailor by country and vacancy</span>
+        {/* =========================================================
+            BOTTOM FOOTER
+           ========================================================= */}
+        <div className="px-8 py-3 bg-[#f8fafc] border-t border-slate-200 text-center text-[10px] text-slate-500 shrink-0">
+          International Professional Format • Standard A4 • ATS-Optimized
+        </div>
       </div>
     </div>
   );
